@@ -26,7 +26,6 @@ export default class GameScene extends Phaser.Scene {
     /* ---------- hero ---------- */
     this.player = this.add
       .sprite(TILE_SIZE / 2, TILE_SIZE / 2, 'raider-idle')
-      .setScale(0.5)
       .play('raider-idle');
     scaleToTile(this.player);
     this.player.gridX = 0;
@@ -143,7 +142,6 @@ export default class GameScene extends Phaser.Scene {
   spawnZombie() {
     const z = this.add
       .sprite(this.player.x, this.player.y, 'zombie-dead')
-      .setScale(0.66)
       .play('zombie-rise');
     scaleToTile(z);
     z.gridX = this.player.gridX;
