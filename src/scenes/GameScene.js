@@ -28,6 +28,7 @@ export default class GameScene extends Phaser.Scene {
       .sprite(TILE_SIZE / 2, TILE_SIZE / 2, 'raider-idle')
       .play('raider-idle');
     scaleToTile(this.player);
+    this.player.setScale(this.player.scaleX * 1.30);
     this.player.gridX = 0;
     this.player.gridY = 0;
     this.player.alive = true;
