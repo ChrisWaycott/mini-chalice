@@ -141,7 +141,7 @@ export default class GameScene extends Phaser.Scene {
   spawnZombie() {
     const z = this.add
       .sprite(this.player.x, this.player.y, 'zombie-dead')
-      .setScale(0.5)
+      .setScale(0.66)
       .play('zombie-rise');
     z.gridX = this.player.gridX;
     z.gridY = this.player.gridY;

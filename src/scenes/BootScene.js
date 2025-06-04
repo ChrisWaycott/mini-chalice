@@ -12,11 +12,11 @@ export default class BootScene extends Phaser.Scene {
     this.load.spritesheet('raider-walk', '/assets/characters/Raider_1/Walk.png',
       { frameWidth: 128, frameHeight: 128 });
 
-    /* Zombie Man */
+    /* Zombie Man (96 × 96 per frame) */
     this.load.spritesheet('zombie-walk', '/assets/characters/Zombie_Man/Walk.png',
-      { frameWidth: 128, frameHeight: 128 });
+      { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('zombie-dead', '/assets/characters/Zombie_Man/Dead.png',
-      { frameWidth: 128, frameHeight: 128 });
+      { frameWidth: 96, frameHeight: 96 });
 
     /* 64 × 64 tiles */
     this.load.image('stone_clean',   '/assets/tiles/stone_clean.png');
