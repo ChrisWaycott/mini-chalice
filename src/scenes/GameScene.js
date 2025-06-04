@@ -49,12 +49,18 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update() {
+    /* 1. Handle hero movement */
     if (!this.player.moving && this.player.alive) {
       const dir = this.getDir();
       if (dir) this.tryMove(dir.dx, dir.dy);
     }
 
-    /* simple zombie AI */
+    /* 2. NEW: listen for Space key anytime */
+    if (this.player.alive && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
+      this.killHero();                             // <<-- call directly
+    }
+
+    /* 3. Simple zombie AI */
     this.zombies.getChildren().forEach((z) => {
       if (z.moving) return;
       const dx = Math.sign(this.player.gridX - z.gridX);
@@ -62,6 +68,7 @@ export default class GameScene extends Phaser.Scene {
       if (dx || dy) this.moveSprite(z, dx, dy);
     });
   }
+
 
   /* ---------- movement helpers ---------- */
   getDir() {
@@ -79,8 +86,7 @@ export default class GameScene extends Phaser.Scene {
     if (nx < 0 || nx >= 10 || ny < 0 || ny >= 10) return;
     if (!this.grid[ny][nx].walkable) return;
     this.moveSprite(this.player, dx, dy, () => {
-      /* placeholder: spacebar = die */
-      if (this.keys.SPACE.isDown) this.killHero();
+      
     });
   }
 
