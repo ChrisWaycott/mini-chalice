@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TILE_SIZE, MOVE_TWEEN_MS, TILE } from '../constants.js';
+import { scaleToTile } from '../utils/scaleToTile.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -27,6 +28,7 @@ export default class GameScene extends Phaser.Scene {
       .sprite(TILE_SIZE / 2, TILE_SIZE / 2, 'raider-idle')
       .setScale(0.5)
       .play('raider-idle');
+    scaleToTile(this.player);
     this.player.gridX = 0;
     this.player.gridY = 0;
     this.player.alive = true;
@@ -143,6 +145,7 @@ export default class GameScene extends Phaser.Scene {
       .sprite(this.player.x, this.player.y, 'zombie-dead')
       .setScale(0.66)
       .play('zombie-rise');
+    scaleToTile(z);
     z.gridX = this.player.gridX;
     z.gridY = this.player.gridY;
     this.zombies.add(z);
