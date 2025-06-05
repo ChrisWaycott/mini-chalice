@@ -32,24 +32,30 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       }
     }
 
-    /* ---------- hero ---------- */
+    /* -------- hero start tile -------- */
+const START_GX = 1;          // grid X
+const START_GY = 1;          // grid Y
+
     this.player = this.add
       // feet start on bottom-edge of tile (y = TILE_SIZE)
-      .sprite(TILE_SIZE / 2, TILE_SIZE, 'raider-idle')
+      .sprite(
+    START_GX * TILE_SIZE + TILE_SIZE / 2,   // x centre of tile (1)
+    START_GY * TILE_SIZE + TILE_SIZE,       // y feet on tile (1)
+    'raider-idle'
+  )
       .setOrigin(0.5, 1)
       .play('raider-idle');
 
     scaleToTile(this.player);                    // width → 64 px
     this.player.setScale(this.player.scaleX * 1.6); // boost to compensate padding
-    this.player.gridX = 1;
-    this.player.gridY = 1;
+    this.player.gridX = START_GX;
+this.player.gridY = START_GY;
     this.player.alive = true;
 
     /* shadow (slightly above feet) */
-    const SHADOW_OFF = 4;        // lift ellipse 4 px so it peeks out
     this.shadow = this.add.ellipse(
       this.player.x,
-      this.player.y - SHADOW_OFF,
+      this.player.y - 4,
       36, 16, 0x000000, 0.3
     );
 
