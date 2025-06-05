@@ -29,6 +29,7 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .play('raider-idle');
     scaleToTile(this.player);
+    this.player.setScale(this.player.scaleX * 1.6);
     this.player.gridX = 0;
     this.player.gridY = 0;
     this.player.alive = true;
@@ -146,6 +147,7 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .play('zombie-rise');
     scaleToTile(z);
+    z.setScale(z.scaleX * 1.2);
     z.gridX = this.player.gridX;
     z.gridY = this.player.gridY;
     this.zombies.add(z);
