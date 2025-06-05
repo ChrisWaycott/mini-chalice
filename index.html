@@ -2,15 +2,59 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Mini‑Chalice Prototype</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-    <style>
-      body,html{margin:0;padding:0;height:100%;background:#1b1c1e;color:#fff;font-family:Inter,Arial,sans-serif;}
-      #game{width:100%;height:100%;}
-    </style>
+    <title>Mini‐Chalice</title>
   </head>
-  <body>
-    <div id="game"></div>
+  <body class="bg-[#0F2F3F] m-0 p-0">
+    <!-- 
+      1) We use flex + items-center/justify-center so that our 640×640 
+         canvas is centered in the viewport (no scrolling). 
+      2) The outermost div is full‐screen (h-screen w-screen).
+      3) The inner “game‐wrapper” is fixed to 640×640 and relative, so 
+         the button can absolutely layer on top without being shoved below.
+    -->
+    <div
+      id="game-outer"
+      class="
+        flex 
+        items-center justify-center 
+        w-screen h-screen 
+        overflow-hidden
+      "
+    >
+      <!-- 
+        640×640 container for Phaser + overlays. Because this never exceeds
+        the viewport (at most 640px tall), nothing pushes the button off‐screen.
+      -->
+      <div 
+        id="game-wrapper" 
+        class="relative w-[640px] h-[640px] bg-black"
+      >
+        <!-- Phaser will inject its <canvas> Here -->
+        <div id="phaser-game" class="absolute inset-0"></div>
+
+        <!-- 
+          Z‐index (z-10) forces it above the canvas. 
+          absolute top-4 left-4 ensures it always sits in the top‐left corner 
+          of the 640×640 “game-wrapper,” never pushed below.
+        -->
+        <button
+          id="test-button"
+          class="
+            absolute 
+            top-4 left-4 
+            z-10 
+            px-4 py-2 
+            bg-[#FA6900] text-white 
+            font-semibold rounded-lg 
+            hover:bg-[#D9470F] active:scale-95 
+            transition
+          "
+        >
+          Test Button
+        </button>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

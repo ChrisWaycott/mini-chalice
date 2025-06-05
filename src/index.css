@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* optional reset to remove default body margin */
+html, body {
+  margin: 0;
+  padding: 0;
+}
