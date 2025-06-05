@@ -30,13 +30,13 @@ export default class GameScene extends Phaser.Scene {
       .play('raider-idle');
     scaleToTile(this.player);
     this.player.y += 60 * this.player.scaleY;
-    this.player.setScale(this.player.scaleX * 2);
+    this.player.setScale(this.player.scaleX * 1.6);
     this.player.gridX = 0;
     this.player.gridY = 0;
     this.player.alive = true;
 
     /* shadow */
-    this.shadow = this.add.ellipse(this.player.x, this.player.y + 40, 36, 16, 0x000000, 0.3);
+    this.shadow = this.add.ellipse(this.player.x, this.player.y + 0, 36, 16, 0x000000, 0.3);
 
     /* ---------- fog-of-war ---------- */
     this.fogRT       = this.make.renderTexture({ width: 640, height: 640, add: true });
