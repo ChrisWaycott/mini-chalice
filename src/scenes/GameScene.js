@@ -179,17 +179,20 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       TILE.CORRUPT
     ).setOrigin(0);
 
-    /* spawn-glyph pulse (two-turn warning) */
+    /* ── Cyan spawn-glyph pulse (2-turn warning) ───────────────── */
 const glyph = this.add.image(
   this.player.gridX * TILE_SIZE + TILE_SIZE / 2,
   this.player.gridY * TILE_SIZE + TILE_SIZE / 2,
   'spawn_glyph'
 ).setDepth(10).setScale(0.8).setAlpha(0);
 
-this.tweens.timeline({
+this.tweens.add({
   targets: glyph,
-  loop: 3,                                     // ~2 turns of pulses
-  tweens: [{ alpha: 1, scale: 1, duration: 400, yoyo: true }]
+  alpha:   1,
+  scale:   1,
+  duration: 400,
+  yoyo:     true,
+  repeat:   2          // 3 flashes total
 });
 
     /* spawn zombie in 2 s */
