@@ -148,7 +148,7 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .play('zombie-rise');
     scaleToTile(z);
-    z.setScale(z.scaleX * 1.6);
+    z.setScale(z.scaleX * 1.2);
     z.gridX = this.player.gridX;
     z.gridY = this.player.gridY;
     this.zombies.add(z);
