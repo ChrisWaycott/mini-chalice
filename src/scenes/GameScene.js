@@ -25,12 +25,10 @@ export default class GameScene extends Phaser.Scene {
 
     /* ---------- hero ---------- */
     this.player = this.add
-      .sprite(TILE_SIZE / 2, TILE_SIZE / 2, 'raider-idle')
+      .sprite(TILE_SIZE / 2, TILE_SIZE, 'raider-idle') // y = bottom of first tile
       .setOrigin(0.5, 1)
       .play('raider-idle');
     scaleToTile(this.player);
-    this.player.y += 60 * this.player.scaleY;
-    this.player.setScale(this.player.scaleX * 1.6);
     this.player.gridX = 0;
     this.player.gridY = 0;
     this.player.alive = true;
@@ -103,7 +101,7 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({
       targets: sprite,
       x: sprite.gridX * TILE_SIZE + TILE_SIZE / 2,
-      y: sprite.gridY * TILE_SIZE + TILE_SIZE / 2,
+      y: sprite.gridY * TILE_SIZE + TILE_SIZE,
       duration: MOVE_TWEEN_MS,
       onUpdate: () => {
         if (sprite === this.player) this.shadow.setPosition(sprite.x, sprite.y + 20);
@@ -148,7 +146,6 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .play('zombie-rise');
     scaleToTile(z);
-    z.setScale(z.scaleX * 1.2);
     z.gridX = this.player.gridX;
     z.gridY = this.player.gridY;
     this.zombies.add(z);
