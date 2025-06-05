@@ -41,8 +41,8 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
 
     scaleToTile(this.player);                    // width → 64 px
     this.player.setScale(this.player.scaleX * 1.6); // boost to compensate padding
-    this.player.gridX = 0;
-    this.player.gridY = 0;
+    this.player.gridX = 1;
+    this.player.gridY = 1;
     this.player.alive = true;
 
     /* shadow (slightly above feet) */
