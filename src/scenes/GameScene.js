@@ -17,10 +17,18 @@ export default class GameScene extends Phaser.Scene {
     for (let y = 0; y < 10; y++) {
       this.grid[y] = [];
       for (let x = 0; x < 10; x++) {
-        const key  = Math.random() < 0.15 ? TILE.CRACKED : TILE.CLEAN;
+        let key;
+if (x === 0 || x === 9 || y === 0 || y === 9) {
+  key = (x === 0 && y === 0) || (x === 9 && y === 9) ||
+        (x === 0 && y === 9) || (x === 9 && y === 0)
+      ? 'wall_corner'          // four corners
+      : 'wall_straight';       // top/bottom/left/right edges
+} else {
+  key = Math.random() < 0.15 ? TILE.CRACKED : TILE.CLEAN;
+}
         const tile = this.add.image(x * TILE_SIZE, y * TILE_SIZE, key).setOrigin(0);
         this.tileLayer.add(tile);
-        this.grid[y][x] = { key, walkable: true };
+        this.grid[y][x] = { key, walkable: !key.startsWith('wall_') };
       }
     }
 
@@ -126,13 +134,35 @@ export default class GameScene extends Phaser.Scene {
 
   /* ---------- fog-of-war ---------- */
   refreshFog() {
-    this.fogRT.clear();
-    this.fogRT.fill(0x0f2f3f, 0.85);
-    this.fogGraphics.clear();
-    this.fogGraphics.fillStyle(0xffffff, 1);
-    this.fogGraphics.fillCircle(this.player.x, this.player.y, TILE_SIZE * 3);
-    this.fogRT.erase(this.fogGraphics, this.fogGraphics);
+  this.fogRT.clear();
+  this.fogRT.fill(0x0f2f3f, 0.85);
+
+  this.fogGraphics.clear();
+  this.fogGraphics.fillStyle(0xffffff, 1);
+
+  const radius = 3;                      // how far the hero can see
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const gx = this.player.gridX + dx;
+      const gy = this.player.gridY + dy;
+      if (gx < 0 || gx >= 10 || gy < 0 || gy >= 10) continue;
+      if (Math.abs(dx) + Math.abs(dy) > radius) continue;   // diamond LoS
+
+      const tile = this.grid[gy][gx];
+      if (tile.key.startsWith('wall_')) continue;           // wall blocks sight
+
+      this.fogGraphics.fillRect(
+        gx * TILE_SIZE,
+        gy * TILE_SIZE,
+        TILE_SIZE,
+        TILE_SIZE
+      );
+    }
   }
+
+  /* reveal the visible tiles */
+  this.fogRT.erase(this.fogGraphics, this.fogGraphics);
+}
 
   /* ---------- death → zombie ---------- */
   killHero() {
@@ -149,8 +179,21 @@ export default class GameScene extends Phaser.Scene {
       TILE.CORRUPT
     ).setOrigin(0);
 
+    /* spawn-glyph pulse (two-turn warning) */
+const glyph = this.add.image(
+  this.player.gridX * TILE_SIZE + TILE_SIZE / 2,
+  this.player.gridY * TILE_SIZE + TILE_SIZE / 2,
+  'spawn_glyph'
+).setDepth(10).setScale(0.8).setAlpha(0);
+
+this.tweens.timeline({
+  targets: glyph,
+  loop: 3,                                     // ~2 turns of pulses
+  tweens: [{ alpha: 1, scale: 1, duration: 400, yoyo: true }]
+});
+
     /* spawn zombie in 2 s */
-    this.time.delayedCall(2000, () => this.spawnZombie());
+    this.time.delayedCall(2000, () => { glyph.destroy(); this.spawnZombie(); });
   }
 
   spawnZombie() {

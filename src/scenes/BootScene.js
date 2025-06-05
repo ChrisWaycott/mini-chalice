@@ -22,6 +22,9 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('stone_clean',   '/assets/tiles/stone_clean.png');
     this.load.image('stone_cracked', '/assets/tiles/stone_cracked.png');
     this.load.image('stone_corrupt', '/assets/tiles/stone_corrupt.png');
+    this.load.image('wall_straight', '/assets/tiles/wall_straight.png');
+    this.load.image('wall_corner',  '/assets/tiles/wall_corner.png');
+    this.load.image('spawn_glyph',  '/assets/tiles/spawn_glyph.png');
   }
 
   create() {
