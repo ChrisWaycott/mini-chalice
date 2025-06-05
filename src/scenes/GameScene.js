@@ -13,10 +13,11 @@ export default class GameScene extends Phaser.Scene {
     /* ---------- map (10 × 10 floor) ---------- */
     this.grid      = [];
     this.tileLayer = this.add.layer();
+
     for (let y = 0; y < 10; y++) {
       this.grid[y] = [];
       for (let x = 0; x < 10; x++) {
-        const key = Math.random() < 0.15 ? TILE.CRACKED : TILE.CLEAN;
+        const key  = Math.random() < 0.15 ? TILE.CRACKED : TILE.CLEAN;
         const tile = this.add.image(x * TILE_SIZE, y * TILE_SIZE, key).setOrigin(0);
         this.tileLayer.add(tile);
         this.grid[y][x] = { key, walkable: true };
@@ -25,17 +26,24 @@ export default class GameScene extends Phaser.Scene {
 
     /* ---------- hero ---------- */
     this.player = this.add
-      .sprite(TILE_SIZE / 2, TILE_SIZE, 'raider-idle') // y = bottom of first tile
+      // feet start on bottom-edge of tile (y = TILE_SIZE)
+      .sprite(TILE_SIZE / 2, TILE_SIZE, 'raider-idle')
       .setOrigin(0.5, 1)
       .play('raider-idle');
-    scaleToTile(this.player);
-    this.player.setScale(this.player.scaleX * 1.6);
+
+    scaleToTile(this.player);                    // width → 64 px
+    this.player.setScale(this.player.scaleX * 1.6); // boost to compensate padding
     this.player.gridX = 0;
     this.player.gridY = 0;
     this.player.alive = true;
 
-    /* shadow */
-    this.shadow = this.add.ellipse(this.player.x, this.player.y + 0, 36, 16, 0x000000, 0.3);
+    /* shadow (slightly above feet) */
+    const SHADOW_OFF = 4;        // lift ellipse 4 px so it peeks out
+    this.shadow = this.add.ellipse(
+      this.player.x,
+      this.player.y - SHADOW_OFF,
+      36, 16, 0x000000, 0.3
+    );
 
     /* ---------- fog-of-war ---------- */
     this.fogRT       = this.make.renderTexture({ width: 640, height: 640, add: true });
@@ -47,23 +55,23 @@ export default class GameScene extends Phaser.Scene {
       'UP,DOWN,LEFT,RIGHT,W,A,S,D,SPACE'
     );
 
-    /* zombies group */
+    /* zombies */
     this.zombies = this.add.group();
   }
 
   update() {
-    /* 1. Handle hero movement */
+    /* hero movement */
     if (!this.player.moving && this.player.alive) {
       const dir = this.getDir();
       if (dir) this.tryMove(dir.dx, dir.dy);
     }
 
-    /* 2. NEW: listen for Space key anytime */
+    /* death test key */
     if (this.player.alive && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
-      this.killHero();                             // <<-- call directly
+      this.killHero();
     }
 
-    /* 3. Simple zombie AI */
+    /* zombie AI */
     this.zombies.getChildren().forEach((z) => {
       if (z.moving) return;
       const dx = Math.sign(this.player.gridX - z.gridX);
@@ -72,14 +80,13 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-
-  /* ---------- movement helpers ---------- */
+  /* ---------- helpers ---------- */
   getDir() {
     const k = this.keys;
-    if (k.LEFT.isDown || k.A.isDown)   return { dx: -1, dy: 0 };
-    if (k.RIGHT.isDown || k.D.isDown)  return { dx:  1, dy: 0 };
-    if (k.UP.isDown || k.W.isDown)     return { dx:  0, dy: -1 };
-    if (k.DOWN.isDown || k.S.isDown)   return { dx:  0, dy: 1 };
+    if (k.LEFT.isDown  || k.A.isDown) return { dx: -1, dy: 0 };
+    if (k.RIGHT.isDown || k.D.isDown) return { dx:  1, dy: 0 };
+    if (k.UP.isDown    || k.W.isDown) return { dx:  0, dy: -1 };
+    if (k.DOWN.isDown  || k.S.isDown) return { dx:  0, dy: 1 };
     return null;
   }
 
@@ -88,9 +95,7 @@ export default class GameScene extends Phaser.Scene {
     const ny = this.player.gridY + dy;
     if (nx < 0 || nx >= 10 || ny < 0 || ny >= 10) return;
     if (!this.grid[ny][nx].walkable) return;
-    this.moveSprite(this.player, dx, dy, () => {
-      
-    });
+    this.moveSprite(this.player, dx, dy);
   }
 
   moveSprite(sprite, dx, dy, cb = () => {}) {
@@ -99,13 +104,16 @@ export default class GameScene extends Phaser.Scene {
     sprite.gridY += dy;
     sprite.play(sprite === this.player ? 'raider-walk' : 'zombie-walk');
 
+    const SHADOW_OFF = 4;
+
     this.tweens.add({
       targets: sprite,
       x: sprite.gridX * TILE_SIZE + TILE_SIZE / 2,
-      y: sprite.gridY * TILE_SIZE + TILE_SIZE,
+      y: sprite.gridY * TILE_SIZE + TILE_SIZE,   // feet on tile
       duration: MOVE_TWEEN_MS,
       onUpdate: () => {
-        if (sprite === this.player) this.shadow.setPosition(sprite.x, sprite.y + 20);
+        if (sprite === this.player)
+          this.shadow.setPosition(sprite.x, sprite.y - SHADOW_OFF);
       },
       onComplete: () => {
         sprite.moving = false;
@@ -133,11 +141,15 @@ export default class GameScene extends Phaser.Scene {
 
     /* corrupt tile */
     const t = this.grid[this.player.gridY][this.player.gridX];
-    t.key = TILE.CORRUPT;
+    t.key      = TILE.CORRUPT;
     t.walkable = false;
-    this.add.image(this.player.gridX * TILE_SIZE, this.player.gridY * TILE_SIZE, TILE.CORRUPT).setOrigin(0);
+    this.add.image(
+      this.player.gridX * TILE_SIZE,
+      this.player.gridY * TILE_SIZE,
+      TILE.CORRUPT
+    ).setOrigin(0);
 
-    /* spawn zombie after 2 seconds */
+    /* spawn zombie in 2 s */
     this.time.delayedCall(2000, () => this.spawnZombie());
   }
 
@@ -146,8 +158,9 @@ export default class GameScene extends Phaser.Scene {
       .sprite(this.player.x, this.player.y, 'zombie-dead')
       .setOrigin(0.5, 1)
       .play('zombie-rise');
-    scaleToTile(z);
-    z.setScale(z.scaleX * 1.2);
+
+    scaleToTile(z);                         // width → 64 px
+    z.setScale(z.scaleX * 1.2);             // slight boost to match Raider
     z.gridX = this.player.gridX;
     z.gridY = this.player.gridY;
     this.zombies.add(z);
