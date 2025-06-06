@@ -12,6 +12,7 @@ export default class GameScene extends Phaser.Scene {
   create() {
     this.turn = 'player'; // 'player' or 'enemy'
     this.playerMovesLeft = 5; // player can move up to 5 tiles per turn
+    this.enemyMoved = false;
     /* ---------- map (10 × 10 floor) ---------- */
     this.grid      = [];
     this.tileLayer = this.add.layer();
@@ -120,30 +121,30 @@ this.player.gridY = START_GY;
         this.killHero();
       }
     } else if (this.turn === 'enemy') {
-      // Each undead moves 1 tile toward player
-      let anyMoving = false;
-      this.undead.getChildren().forEach((u) => {
-        if (u.moving) {
-          anyMoving = true;
-          return;
-        }
-        const dx = this.player.gridX - u.gridX;
-        const dy = this.player.gridY - u.gridY;
-        let mx = 0, my = 0;
-        if (Math.abs(dx) > Math.abs(dy)) {
-          mx = Math.sign(dx);
-        } else if (dy !== 0) {
-          my = Math.sign(dy);
-        }
-        if (mx !== 0 || my !== 0) {
-          this.moveSprite(u, mx, my);
-          anyMoving = true;
-        }
-      });
+      if (!this.enemyMoved) {
+        this.undead.getChildren().forEach((u) => {
+          if (!u.moving) {
+            const dx = this.player.gridX - u.gridX;
+            const dy = this.player.gridY - u.gridY;
+            let mx = 0, my = 0;
+            if (Math.abs(dx) > Math.abs(dy)) {
+              mx = Math.sign(dx);
+            } else if (dy !== 0) {
+              my = Math.sign(dy);
+            }
+            if (mx !== 0 || my !== 0) {
+              this.moveSprite(u, mx, my);
+            }
+          }
+        });
+        this.enemyMoved = true;
+      }
       // Wait for all undead to finish moving before returning to player turn
-      if (!anyMoving) {
+      const anyMoving = this.undead.getChildren().some(u => u.moving);
+      if (!anyMoving && this.enemyMoved) {
         this.turn = 'player';
         this.playerMovesLeft = 5;
+        this.enemyMoved = false;
       }
     }
   }
