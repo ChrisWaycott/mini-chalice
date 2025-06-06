@@ -183,13 +183,17 @@ this.player.gridY = START_GY;
       // Flip player sprite for attack direction
       this.player.flipX = (target.gridX < this.player.gridX);
       this.player.play('raider-attack', true);
-      target.hp -= 1;
-      if (target.hp <= 0) {
-        // Play death animation or destroy
-        target.destroy();
-        this.undead.remove(target);
-      }
-      return;
+      // Prevent immediate movement and further input
+      this.player.moving = true;
+      this.player.once('animationcomplete', () => {
+        target.hp -= 1;
+        if (target.hp <= 0) {
+          target.destroy();
+          this.undead.remove(target);
+        }
+        this.player.moving = false;
+      });
+      return; // Never move into the undead's tile
     }
     this.moveSprite(this.player, dx, dy);
   }
