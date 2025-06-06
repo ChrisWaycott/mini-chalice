@@ -351,6 +351,7 @@ const py = START_GY;
   killSurvivor(survivor) {
     survivor.alive = false;
     survivor.setTint(0x555555);
+    if (survivor.hpText) survivor.hpText.destroy();
 
     /* corrupt tile */
     const t = this.grid[survivor.gridY][survivor.gridX];
@@ -362,24 +363,26 @@ const py = START_GY;
       TILE.CORRUPT
     ).setOrigin(0);
 
-    /* ── Cyan spawn-glyph pulse (2-turn warning) ───────────────── */
-    const glyph = this.add.image(
-      survivor.gridX * TILE_SIZE + TILE_SIZE / 2,
-      survivor.gridY * TILE_SIZE + TILE_SIZE / 2,
-      'spawn_glyph'
-    ).setDepth(10).setScale(0.8).setAlpha(0);
+    // Immediately spawn an undead at survivor's position (full HP)
+    const z = this.add
+      .sprite(survivor.gridX * TILE_SIZE + TILE_SIZE / 2, survivor.gridY * TILE_SIZE + TILE_SIZE, 'zombie-dead')
+      .setOrigin(0.5, 1)
+      .play('zombie-rise');
+    scaleToTile(z);
+    z.setScale(z.scaleX * 1.2);
+    z.gridX = survivor.gridX;
+    z.gridY = survivor.gridY;
+    z.hp = 2;
+    z.hpText = this.add.text(
+      z.x,
+      z.y - 54,
+      z.hp.toString(),
+      { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
+    ).setOrigin(0.5, 1);
+    this.undead.add(z);
 
-    this.tweens.add({
-      targets: glyph,
-      alpha:   1,
-      scale:   1,
-      duration: 400,
-      yoyo:     true,
-      repeat:   2          // 3 flashes total
-    });
-
-    /* spawn undead in 2 s */
-    this.time.delayedCall(2000, () => { glyph.destroy(); this.spawnUndead(); });
+    // Optionally, play a special effect for turning
+    // (skip the delayed glyph/undead spawn)
   }
   // For compatibility
   killHero() {
