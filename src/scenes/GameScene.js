@@ -62,6 +62,8 @@ const py = START_GY;
     p1.spriteKey = 'raider';
     p1.walkKey = 'raider-walk';
     p1.attackKey = 'raider-attack';
+    // Add shadow
+    p1.shadow = this.add.ellipse(p1.x, p1.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5);
     this.survivors.push(p1);
     // Raider_2 (spawn at opposite corner)
     const p2 = this.add
@@ -83,6 +85,8 @@ const py = START_GY;
     p2.spriteKey = 'raider2-idle';
     p2.walkKey = 'raider2-walk';
     p2.attackKey = 'raider2-attack';
+    // Add shadow
+    p2.shadow = this.add.ellipse(p2.x, p2.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5);
     this.survivors.push(p2);
     // Set active survivor
     this.activeSurvivorIndex = 0;
@@ -139,6 +143,8 @@ const py = START_GY;
         z.hp.toString(),
         { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
       ).setOrigin(0.5, 1);
+      // Add shadow
+      z.shadow = this.add.ellipse(z.x, z.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5);
       this.undead.add(z);
     }
   }
@@ -171,6 +177,15 @@ const py = START_GY;
       if (u.hpText) {
         u.hpText.setPosition(u.x, u.y - 54);
         u.hpText.setText(u.hp.toString());
+      }
+      if (u.shadow) {
+        u.shadow.setPosition(u.x, u.y - 4);
+      }
+    });
+    // Update survivor shadows
+    this.survivors.forEach(s => {
+      if (s.shadow) {
+        s.shadow.setPosition(s.x, s.y - 4);
       }
     });
     if (this.turn === 'player') {
@@ -373,22 +388,40 @@ const py = START_GY;
     // Immediately spawn an undead at survivor's position (full HP)
     // Only if no other undead is on this tile
     if (!this.undead.getChildren().some(u => u.gridX === survivor.gridX && u.gridY === survivor.gridY)) {
-      const z = this.add
-        .sprite(survivor.gridX * TILE_SIZE + TILE_SIZE / 2, survivor.gridY * TILE_SIZE + TILE_SIZE, 'zombie-dead')
-        .setOrigin(0.5, 1)
-        .play('zombie-rise');
-      scaleToTile(z);
-      z.setScale(z.scaleX * 1.2);
-      z.gridX = survivor.gridX;
-      z.gridY = survivor.gridY;
-      z.hp = 2;
-      z.hpText = this.add.text(
-        z.x,
-        z.y - 54,
-        z.hp.toString(),
-        { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
-      ).setOrigin(0.5, 1);
-      this.undead.add(z);
+      // Show spawn_glyph and pulse for 2s, then spawn undead
+      const glyph = this.add.image(
+        survivor.gridX * TILE_SIZE + TILE_SIZE / 2,
+        survivor.gridY * TILE_SIZE + TILE_SIZE / 2,
+        'spawn_glyph'
+      ).setDepth(10).setScale(0.8).setAlpha(0);
+      this.tweens.add({
+        targets: glyph,
+        alpha:   1,
+        scale:   1,
+        duration: 400,
+        yoyo:     true,
+        repeat:   2 // 3 flashes total
+      });
+      this.time.delayedCall(2000, () => {
+        glyph.destroy();
+        const z = this.add
+          .sprite(survivor.gridX * TILE_SIZE + TILE_SIZE / 2, survivor.gridY * TILE_SIZE + TILE_SIZE, 'zombie-dead')
+          .setOrigin(0.5, 1)
+          .play('zombie-rise');
+        scaleToTile(z);
+        z.setScale(z.scaleX * 1.2);
+        z.gridX = survivor.gridX;
+        z.gridY = survivor.gridY;
+        z.hp = 2;
+        z.hpText = this.add.text(
+          z.x,
+          z.y - 54,
+          z.hp.toString(),
+          { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
+        ).setOrigin(0.5, 1);
+        z.shadow = this.add.ellipse(z.x, z.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5);
+        this.undead.add(z);
+      });
     }
 
     // Optionally, play a special effect for turning
