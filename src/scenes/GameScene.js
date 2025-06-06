@@ -170,7 +170,7 @@ this.player.gridY = START_GY;
   this.fogRT.erase(this.fogGraphics, this.fogGraphics);
 }
 
-  /* ---------- death → undead ---------- */
+  /* ---------- death → zombie ---------- */
   killHero() {
     this.player.alive = false;
     this.player.setTint(0x555555);
@@ -215,6 +215,6 @@ this.tweens.add({
     z.setScale(z.scaleX * 1.2);             // slight boost to match Raider
     z.gridX = this.player.gridX;
     z.gridY = this.player.gridY;
-    this.undead.add(u);
+    this.undead.add(z);
   }
 }
