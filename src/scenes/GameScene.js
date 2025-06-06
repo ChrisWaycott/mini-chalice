@@ -99,6 +99,7 @@ this.player.gridY = START_GY;
       z.setScale(z.scaleX * 1.2);
       z.gridX = gx;
       z.gridY = gy;
+      z.hp = 2;
       this.undead.add(z);
     }
   }
@@ -124,6 +125,18 @@ this.player.gridY = START_GY;
       if (!this.enemyMoved) {
         this.undead.getChildren().forEach((u) => {
           if (!u.moving) {
+            // Check if adjacent to player for attack
+            if (Math.abs(u.gridX - this.player.gridX) + Math.abs(u.gridY - this.player.gridY) === 1) {
+              // Flip undead sprite for attack direction
+              u.flipX = (this.player.gridX < u.gridX);
+              u.play('zombie-attack', true);
+              this.player.hp -= 1;
+              if (this.player.hp <= 0) {
+                this.killHero();
+              }
+              // No move if attacking
+              return;
+            }
             const dx = this.player.gridX - u.gridX;
             const dy = this.player.gridY - u.gridY;
             let mx = 0, my = 0;
@@ -164,6 +177,20 @@ this.player.gridY = START_GY;
     const ny = this.player.gridY + dy;
     if (nx < 0 || nx >= 10 || ny < 0 || ny >= 10) return;
     if (!this.grid[ny][nx].walkable) return;
+    // Check for attack on undead
+    const target = this.undead.getChildren().find(u => u.gridX === nx && u.gridY === ny);
+    if (target) {
+      // Flip player sprite for attack direction
+      this.player.flipX = (target.gridX < this.player.gridX);
+      this.player.play('raider-attack', true);
+      target.hp -= 1;
+      if (target.hp <= 0) {
+        // Play death animation or destroy
+        target.destroy();
+        this.undead.remove(target);
+      }
+      return;
+    }
     this.moveSprite(this.player, dx, dy);
   }
 
