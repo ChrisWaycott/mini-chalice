@@ -87,10 +87,10 @@ this.player.gridY = START_GY;
 
     /* undead AI */
     this.undead.getChildren().forEach((u) => {
-      if (z.moving) return;
-      const dx = Math.sign(this.player.gridX - z.gridX);
-      const dy = Math.sign(this.player.gridY - z.gridY);
-      if (dx || dy) this.moveSprite(z, dx, dy);
+      if (u.moving) return;
+      const dx = Math.sign(this.player.gridX - u.gridX);
+      const dy = Math.sign(this.player.gridY - u.gridY);
+      if (dx || dy) this.moveSprite(u, dx, dy);
     });
   }
 
