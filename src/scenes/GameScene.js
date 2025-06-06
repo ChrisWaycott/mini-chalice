@@ -11,7 +11,7 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     this.turn = 'player'; // 'player' or 'enemy'
-    this.playerHasMoved = false;
+    this.playerMovesLeft = 5; // player can move up to 5 tiles per turn
     /* ---------- map (10 × 10 floor) ---------- */
     this.grid      = [];
     this.tileLayer = this.add.layer();
@@ -104,17 +104,16 @@ this.player.gridY = START_GY;
 
   update() {
     if (this.turn === 'player') {
-      if (!this.player.moving && this.player.alive && !this.playerHasMoved) {
+      if (!this.player.moving && this.player.alive && this.playerMovesLeft > 0) {
         const dir = this.getDir();
         if (dir) {
           this.tryMove(dir.dx, dir.dy);
-          this.playerHasMoved = true;
+          this.playerMovesLeft--;
         }
       }
-      // End turn with ENTER
-      if (this.playerHasMoved && Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('ENTER'))) {
+      // End turn with ENTER or when out of moves
+      if ((this.playerMovesLeft === 0 || Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('ENTER'))) && !this.player.moving) {
         this.turn = 'enemy';
-        this.playerHasMoved = false;
       }
       // Death test key
       if (this.player.alive && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
@@ -138,6 +137,7 @@ this.player.gridY = START_GY;
       // Wait for all undead to finish moving before returning to player turn
       if (!anyMoving) {
         this.turn = 'player';
+        this.playerMovesLeft = 5;
       }
     }
   }
