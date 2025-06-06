@@ -106,21 +106,16 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ---------- infection-haze (basic) ---------- */
-    // Create a simple black overlay
-    this.fogOverlay = this.add.graphics()
-      .fillStyle(0x000000, 0.8)
-      .fillRect(0, 0, 640, 640)
-      .setDepth(1000);
+    /* ---------- infection-haze (render texture) ---------- */
+    console.log('Creating infection haze with render texture...');
     
-    // Create a mask for the visible area
-    this.visionMask = this.make.graphics()
-      .fillStyle(0xffffff);
+    // Create a render texture for the fog of war
+    this.fogRenderTexture = this.add.renderTexture(0, 0, 640, 640)
+      .setDepth(1000)
+      .setOrigin(0, 0);
     
-    // Apply the mask to the overlay
-    this.fogOverlay.setMask(
-      new Phaser.Display.Masks.GeometryMask(this, this.visionMask)
-    );
+    // Draw the initial black fog
+    this.fogRenderTexture.fill(0x000000, 0.9, 0, 0, 640, 640);
     
     // Add debug border
     this.debugBorder = this.add.graphics()
@@ -128,10 +123,10 @@ const py = START_GY;
       .strokeRect(0, 0, 640, 640)
       .setDepth(1001);
     
-    // Initial update of the mask
+    // Initial update of the fog
     this.updateHazeMask();
     
-    console.log('Basic infection haze created with debug border');
+    console.log('Infection haze created with render texture');
 
     /* ---------- input ---------- */
     this.keys = this.input.keyboard.addKeys(
@@ -392,12 +387,32 @@ const py = START_GY;
 
   /* ---------- infection-haze ---------- */
   updateHazeMask() {
-    if (!this.player || !this.visionMask) return;
+    if (!this.player || !this.fogRenderTexture) {
+      console.log('Cannot update haze: player or render texture not ready');
+      return;
+    }
     
-    // Clear and update the vision mask (circle around player)
-    this.visionMask.clear()
-      .fillStyle(0xffffff)
-      .fillCircle(this.player.x, this.player.y, TILE_SIZE * 3);
+    // Clear the render texture and redraw the black fog
+    this.fogRenderTexture.clear();
+    this.fogRenderTexture.fill(0x000000, 0.9, 0, 0, 640, 640);
+    
+    // Draw a circle to reveal the area around the player
+    this.fogRenderTexture.fill(
+      0x000000,  // Color (black)
+      0,         // Alpha (fully transparent)
+      this.player.x - TILE_SIZE * 3,  // x
+      this.player.y - TILE_SIZE * 3,  // y
+      TILE_SIZE * 6,                  // width
+      TILE_SIZE * 6,                  // height
+      {                               // Circle mask
+        x: this.player.x,
+        y: this.player.y,
+        radius: TILE_SIZE * 3,
+        fillStyle: { color: 0xffffff, alpha: 1 }
+      }
+    );
+    
+    console.log(`Updated fog at x:${this.player.x}, y:${this.player.y}`);
   }
   
   // This will be called after the scene is fully created
