@@ -10,6 +10,17 @@ export default class GameScene extends Phaser.Scene {
   preload() { /* nothing */ }
 
   create() {
+    // Set up movement keys ONCE
+    this.keys = this.input.keyboard.addKeys({
+      LEFT: 'LEFT',
+      RIGHT: 'RIGHT',
+      UP: 'UP',
+      DOWN: 'DOWN',
+      A: 'A',
+      D: 'D',
+      W: 'W',
+      S: 'S'
+    });
     this.turn = 'player'; // 'player' or 'enemy'
     this.playerMovesLeft = 5; // player can move up to 5 tiles per turn
     this.enemyMoved = false;
@@ -277,11 +288,11 @@ const py = START_GY;
 
   /* ---------- helpers ---------- */
   getDirJustDown() {
-  const input = this.input.keyboard;
-  if (Phaser.Input.Keyboard.JustDown(input.addKey('LEFT'))  || Phaser.Input.Keyboard.JustDown(input.addKey('A'))) return { dx: -1, dy: 0 };
-  if (Phaser.Input.Keyboard.JustDown(input.addKey('RIGHT')) || Phaser.Input.Keyboard.JustDown(input.addKey('D'))) return { dx:  1, dy: 0 };
-  if (Phaser.Input.Keyboard.JustDown(input.addKey('UP'))    || Phaser.Input.Keyboard.JustDown(input.addKey('W'))) return { dx:  0, dy: -1 };
-  if (Phaser.Input.Keyboard.JustDown(input.addKey('DOWN'))  || Phaser.Input.Keyboard.JustDown(input.addKey('S'))) return { dx:  0, dy: 1 };
+  const k = this.keys;
+  if (Phaser.Input.Keyboard.JustDown(k.LEFT)  || Phaser.Input.Keyboard.JustDown(k.A)) return { dx: -1, dy: 0 };
+  if (Phaser.Input.Keyboard.JustDown(k.RIGHT) || Phaser.Input.Keyboard.JustDown(k.D)) return { dx:  1, dy: 0 };
+  if (Phaser.Input.Keyboard.JustDown(k.UP)    || Phaser.Input.Keyboard.JustDown(k.W)) return { dx:  0, dy: -1 };
+  if (Phaser.Input.Keyboard.JustDown(k.DOWN)  || Phaser.Input.Keyboard.JustDown(k.S)) return { dx:  0, dy: 1 };
   return null;
 }
 
