@@ -54,6 +54,13 @@ const START_GY = 1;          // grid Y
     this.player.gridX = START_GX;
 this.player.gridY = START_GY;
     this.player.alive = true;
+    this.player.hp = 3;
+    this.player.hpText = this.add.text(
+      this.player.x,
+      this.player.y - this.player.displayHeight,
+      this.player.hp.toString(),
+      { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
+    ).setOrigin(0.5, 1);
 
     /* shadow (slightly above feet) */
     this.shadow = this.add.ellipse(
@@ -100,11 +107,26 @@ this.player.gridY = START_GY;
       z.gridX = gx;
       z.gridY = gy;
       z.hp = 2;
+      z.hpText = this.add.text(
+        z.x,
+        z.y - z.displayHeight,
+        z.hp.toString(),
+        { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
+      ).setOrigin(0.5, 1);
       this.undead.add(z);
     }
   }
 
   update() {
+    // Update HP text positions
+    this.player.hpText.setPosition(this.player.x, this.player.y - this.player.displayHeight);
+    this.player.hpText.setText(this.player.hp.toString());
+    this.undead.getChildren().forEach(u => {
+      if (u.hpText) {
+        u.hpText.setPosition(u.x, u.y - u.displayHeight);
+        u.hpText.setText(u.hp.toString());
+      }
+    });
     if (this.turn === 'player') {
       if (!this.player.moving && this.player.alive && this.playerMovesLeft > 0) {
         const dir = this.getDir();
@@ -131,7 +153,9 @@ this.player.gridY = START_GY;
               u.flipX = (this.player.gridX < u.gridX);
               u.play('zombie-attack', true);
               this.player.hp -= 1;
+              if (this.player.hpText) this.player.hpText.setText(this.player.hp.toString());
               if (this.player.hp <= 0) {
+                this.player.hpText.destroy();
                 this.killHero();
               }
               // No move if attacking
@@ -187,7 +211,9 @@ this.player.gridY = START_GY;
       this.player.moving = true;
       this.player.once('animationcomplete', () => {
         target.hp -= 1;
+        if (target.hpText) target.hpText.setText(target.hp.toString());
         if (target.hp <= 0) {
+          if (target.hpText) target.hpText.destroy();
           target.destroy();
           this.undead.remove(target);
         }
