@@ -405,6 +405,8 @@ const py = START_GY;
     survivor.alive = false;
     survivor.setTint(0x555555);
     if (survivor.hpText) survivor.hpText.destroy();
+    if (survivor.shadow) survivor.shadow.destroy();
+    survivor.destroy();
 
     /* corrupt tile */
     const t = this.grid[survivor.gridY][survivor.gridX];
