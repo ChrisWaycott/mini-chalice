@@ -127,10 +127,16 @@ this.player.gridY = START_GY;
           anyMoving = true;
           return;
         }
-        const dx = Math.sign(this.player.gridX - u.gridX);
-        const dy = Math.sign(this.player.gridY - u.gridY);
-        if (dx || dy) {
-          this.moveSprite(u, dx, dy);
+        const dx = this.player.gridX - u.gridX;
+        const dy = this.player.gridY - u.gridY;
+        let mx = 0, my = 0;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          mx = Math.sign(dx);
+        } else if (dy !== 0) {
+          my = Math.sign(dy);
+        }
+        if (mx !== 0 || my !== 0) {
+          this.moveSprite(u, mx, my);
           anyMoving = true;
         }
       });
