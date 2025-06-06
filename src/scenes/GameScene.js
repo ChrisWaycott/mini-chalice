@@ -106,38 +106,37 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ---------- infection-haze (with memory) ---------- */
+    /* ---------- infection-haze (simplified) ---------- */
     // Track which tiles have been revealed
     this.revealedTiles = Array(10).fill().map(() => Array(10).fill(false));
     
-    // Create a black overlay covering the entire game
+    // Create a graphics object for the fog
     this.hazeOverlay = this.add.graphics()
-      .fillStyle(0x000000, 0.9)  // 90% opaque black
+      .fillStyle(0x000000, 0.8)  // 80% opaque black
       .fillRect(0, 0, 640, 640)
       .setDepth(1000);
     
-    // Create a mask for currently visible area
-    this.currentVisionMask = this.make.graphics();
-    
-    // Create a mask for previously revealed areas
-    this.revealedMask = this.make.graphics();
-    
-    // Create a container to combine both masks
-    this.combinedMask = this.make.graphics();
-    this.updateHazeMask();
-    
-    // Apply the combined mask to the overlay
-    this.hazeOverlay.setMask(
-      new Phaser.Display.Masks.GeometryMask(this, this.combinedMask)
-    );
-    
-    // Keep the red border for reference
-    const debugOutline = this.add.graphics()
-      .lineStyle(4, 0xff0000, 1)
-      .strokeRect(0, 0, 640, 640)
+    // Create a mask for the visible area
+    this.visionMask = this.make.graphics()
+      .fillStyle(0xffffff)
+      .fillCircle(0, 0, TILE_SIZE * 3)  // Initial position will be updated
       .setDepth(1001);
     
-    console.log('Infection haze with memory created');
+    // Apply the mask to the overlay
+    this.hazeOverlay.setMask(
+      new Phaser.Display.Masks.GeometryMask(this, this.visionMask)
+    );
+    
+    // Debug outline (temporary)
+    this.debugOutline = this.add.graphics()
+      .lineStyle(2, 0xff0000, 1)
+      .strokeRect(0, 0, 640, 640)
+      .setDepth(1002);
+    
+    // Initial update of the mask position
+    this.updateHazeMask();
+    
+    console.log('Simplified infection haze created');
 
     /* ---------- input ---------- */
     this.keys = this.input.keyboard.addKeys(
@@ -398,13 +397,13 @@ const py = START_GY;
 
   /* ---------- infection-haze ---------- */
   updateHazeMask() {
-    if (!this.player || !this.currentVisionMask || !this.revealedMask || !this.combinedMask) return;
+    if (!this.player || !this.visionMask) return;
     
-    const visionRadius = 2.5; // in tiles
+    // Update revealed tiles (3x3 area around player)
+    const visionRadius = 3; // in tiles
     const gx = Math.floor(this.player.x / TILE_SIZE);
     const gy = Math.floor(this.player.y / TILE_SIZE);
     
-    // Update revealed tiles (3x3 area around player)
     for (let y = -visionRadius; y <= visionRadius; y++) {
       for (let x = -visionRadius; x <= visionRadius; x++) {
         const nx = gx + x;
@@ -415,21 +414,21 @@ const py = START_GY;
       }
     }
     
-    // Clear and update the current vision mask (circle around player)
-    this.currentVisionMask.clear()
+    // Update the mask position to follow the player
+    this.visionMask
+      .clear()
       .fillStyle(0xffffff)
-      .fillCircle(
-        this.player.x,
-        this.player.y,
-        TILE_SIZE * visionRadius
-      );
+      .fillCircle(this.player.x, this.player.y, TILE_SIZE * 2.5);
     
-    // Update the revealed areas mask (all previously seen tiles)
-    this.revealedMask.clear().fillStyle(0xffffff);
+    // Draw revealed tiles (slightly darker than current vision)
+    const revealed = this.add.graphics()
+      .fillStyle(0xffffff, 0.6)  // 60% opacity for revealed areas
+      .setDepth(999);
+    
     for (let y = 0; y < 10; y++) {
       for (let x = 0; x < 10; x++) {
         if (this.revealedTiles[y][x]) {
-          this.revealedMask.fillRect(
+          revealed.fillRect(
             x * TILE_SIZE,
             y * TILE_SIZE,
             TILE_SIZE,
@@ -438,14 +437,6 @@ const py = START_GY;
         }
       }
     }
-    
-    // Combine both masks (current vision + previously revealed)
-    this.combinedMask.clear()
-      .fillStyle(0xffffff)
-      .fillRect(0, 0, 640, 640)  // Fill everything
-      .blendModeAdd()
-      .draw(this.currentVisionMask)
-      .draw(this.revealedMask);
   }
   
   // This will be called after the scene is fully created
