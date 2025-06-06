@@ -106,20 +106,38 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ---------- infection-haze ---------- */
-    console.log('Creating infection haze...');
-    this.hazeRT = this.make.renderTexture({ width: 640, height: 640, add: true });
-    this.hazeRT.setDepth(1000); // Ensure it's on top
+    /* ---------- infection-haze (with memory) ---------- */
+    // Track which tiles have been revealed
+    this.revealedTiles = Array(10).fill().map(() => Array(10).fill(false));
     
-    // Add a red border for debugging
-    const debugOutline = this.add.graphics();
-    debugOutline.lineStyle(4, 0xff0000, 1);
-    debugOutline.strokeRect(0, 0, 640, 640);
-    debugOutline.setDepth(1001);
+    // Create a black overlay covering the entire game
+    this.hazeOverlay = this.add.graphics()
+      .fillStyle(0x000000, 0.9)  // 90% opaque black
+      .fillRect(0, 0, 640, 640)
+      .setDepth(1000);
     
-    this.hazeGraphics = this.make.graphics();
-    this.refreshHaze();
-    console.log('Infection haze created');
+    // Create a mask for currently visible area
+    this.currentVisionMask = this.make.graphics();
+    
+    // Create a mask for previously revealed areas
+    this.revealedMask = this.make.graphics();
+    
+    // Create a container to combine both masks
+    this.combinedMask = this.make.graphics();
+    this.updateHazeMask();
+    
+    // Apply the combined mask to the overlay
+    this.hazeOverlay.setMask(
+      new Phaser.Display.Masks.GeometryMask(this, this.combinedMask)
+    );
+    
+    // Keep the red border for reference
+    const debugOutline = this.add.graphics()
+      .lineStyle(4, 0xff0000, 1)
+      .strokeRect(0, 0, 640, 640)
+      .setDepth(1001);
+    
+    console.log('Infection haze with memory created');
 
     /* ---------- input ---------- */
     this.keys = this.input.keyboard.addKeys(
@@ -379,37 +397,66 @@ const py = START_GY;
   }
 
   /* ---------- infection-haze ---------- */
-  refreshHaze() {
-  console.log('Refreshing infection haze...');
-  this.hazeRT.clear();
-  // Solid red for debugging (change back to dark when working)
-  this.hazeRT.fill(0xff0000, 0.8);
-
-  this.hazeGraphics.clear();
-  this.hazeGraphics.fillStyle(0xffffff, 1);
-
-  const visionRadius = 3; // tiles
-  const survivor = this.survivors[0]; // assuming player-controlled survivor
-  const gx = survivor.gridX;
-  const gy = survivor.gridY;
-
-  // Reveal area around survivor
-  for (let y = -visionRadius; y <= visionRadius; y++) {
-    for (let x = -visionRadius; x <= visionRadius; x++) {
-      const nx = gx + x;
-      const ny = gy + y;
-      if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-        this.hazeGraphics.fillRect(
-          nx * TILE_SIZE,
-          ny * TILE_SIZE,
-          TILE_SIZE,
-          TILE_SIZE
-        );
+  updateHazeMask() {
+    if (!this.player || !this.currentVisionMask || !this.revealedMask || !this.combinedMask) return;
+    
+    const visionRadius = 2.5; // in tiles
+    const gx = Math.floor(this.player.x / TILE_SIZE);
+    const gy = Math.floor(this.player.y / TILE_SIZE);
+    
+    // Update revealed tiles (3x3 area around player)
+    for (let y = -visionRadius; y <= visionRadius; y++) {
+      for (let x = -visionRadius; x <= visionRadius; x++) {
+        const nx = gx + x;
+        const ny = gy + y;
+        if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
+          this.revealedTiles[ny][nx] = true;
+        }
       }
     }
+    
+    // Clear and update the current vision mask (circle around player)
+    this.currentVisionMask.clear()
+      .fillStyle(0xffffff)
+      .fillCircle(
+        this.player.x,
+        this.player.y,
+        TILE_SIZE * visionRadius
+      );
+    
+    // Update the revealed areas mask (all previously seen tiles)
+    this.revealedMask.clear().fillStyle(0xffffff);
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        if (this.revealedTiles[y][x]) {
+          this.revealedMask.fillRect(
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+        }
+      }
+    }
+    
+    // Combine both masks (current vision + previously revealed)
+    this.combinedMask.clear()
+      .fillStyle(0xffffff)
+      .fillRect(0, 0, 640, 640)  // Fill everything
+      .blendModeAdd()
+      .draw(this.currentVisionMask)
+      .draw(this.revealedMask);
   }
-
-  this.hazeRT.erase(this.hazeGraphics, this.hazeGraphics);
+  
+  // This will be called after the scene is fully created
+  createPost() {
+    // Initialize the mask after everything is set up
+    this.time.delayedCall(100, () => {
+      if (this.updateHazeMask) {
+        this.updateHazeMask();
+      }
+    });
+  }
 }
 
   /* ---------- death → zombie ---------- */
