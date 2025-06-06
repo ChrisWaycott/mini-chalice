@@ -18,13 +18,9 @@ House (Noble Lineage / Family)
 : Replacement: Survivor Group
 : (your group identity that passes down skills or roles)
 
-Cadence (Turn Budget / Strategic Time Unit)
-: Replacement: Days
-: (the “currency” of turns you spend on the Containment Zone map each cycle)
-
-Courage (Resource Points)
-: Replacement: Supplies
-: (points you spend to equip, upgrade, or recruit survivors on the Containment Zone map)
+Cadence (The enemy attacking)
+: Replacement: Undead
+: (the enemy that attacks your camp)
 
 Hero / Champion
 : Replacement: Survivor
@@ -38,13 +34,9 @@ Horde (Enemy Force)
 : Replacement: Infected
 : (the invading zombies you fight in the Quarantine Zone)
 
-Artifact / The Massive Chalice
-: Replacement: Salvage
-: (They are aided by the titular Massive Chalice, a magical artifact whose two personalities advise the player.)
-
-Brine King (Final Boss)
-: Replacement: Overlord
-: (the ultimate zombie boss or mad scientist commanding the infected)
+Artifact / The Massive Chalice (a magical artifact whose two personalities advise the player.)
+: Replacement: The Beacon
+: (An unknown broadcast whose two personalities advise the player.)
 
 Keep Upgrades (Fortifications / Improvements)
 : Replacement: Fortifications
@@ -162,9 +154,9 @@ Permadeath (Permanent Hero Loss)
 : Replacement: Taken by Infection
 : (when a Survivor dies in battle, they’re gone for good)
 
-Relic (Unique Persistent Bonus / Mapwide Perk)
+Relic
 : Replacement: Relic
-: (rare, persistent item that grants a map-wide bonus)
+: (Unique, upgradable weapons or gear passed between survivors, gaining power or abilities with each new user.)
 
 Battle Duration (Number of Turns / Rounds in a Battle)
 : Replacement: Mission Duration
@@ -182,3 +174,10 @@ Random Events (Unexpected Strategic Occurrences)
 : Replacement: Random Events
 : (dynamic happenings on the Containment Zone map—for example, zombie migration or a supply drop)
 
+Research (Unexpected Strategic Occurrences)
+: Replacement: Scavenging/Engineering
+: (Unlock new fortifications, survivor skills, or special equipment by scavenging or engineering improvements.)
+
+Aging/Retirement (Heroes age, retire, and die.)
+: Replacement: Aging/Retirement
+: (Survivors age, may become less effective, or retire from active duty.))

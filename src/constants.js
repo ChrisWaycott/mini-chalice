@@ -9,5 +9,5 @@ export const TILE = {
 };
 
 export const ENEMY = {
-  ZOMBIE: 'zombie',
+  UNDEAD: 'zombie', // asset key unchanged
 };

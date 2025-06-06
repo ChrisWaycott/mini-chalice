@@ -69,8 +69,8 @@ this.player.gridY = START_GY;
       'UP,DOWN,LEFT,RIGHT,W,A,S,D,SPACE'
     );
 
-    /* zombies */
-    this.zombies = this.add.group();
+    /* undead */
+    this.undead = this.add.group();
   }
 
   update() {
@@ -85,8 +85,8 @@ this.player.gridY = START_GY;
       this.killHero();
     }
 
-    /* zombie AI */
-    this.zombies.getChildren().forEach((z) => {
+    /* undead AI */
+    this.undead.getChildren().forEach((u) => {
       if (z.moving) return;
       const dx = Math.sign(this.player.gridX - z.gridX);
       const dy = Math.sign(this.player.gridY - z.gridY);
@@ -116,7 +116,7 @@ this.player.gridY = START_GY;
     sprite.moving = true;
     sprite.gridX += dx;
     sprite.gridY += dy;
-    sprite.play(sprite === this.player ? 'raider-walk' : 'zombie-walk');
+    sprite.play(sprite === this.player ? 'raider-walk' : 'zombie-walk'); // asset key unchanged
 
     const SHADOW_OFF = 4;
 
@@ -131,7 +131,7 @@ this.player.gridY = START_GY;
       },
       onComplete: () => {
         sprite.moving = false;
-        sprite.play(sprite === this.player ? 'raider-idle' : 'zombie-walk');
+        sprite.play(sprite === this.player ? 'raider-idle' : 'zombie-walk'); // asset key unchanged
         if (sprite === this.player) this.refreshFog();
         cb();
       },
@@ -170,7 +170,7 @@ this.player.gridY = START_GY;
   this.fogRT.erase(this.fogGraphics, this.fogGraphics);
 }
 
-  /* ---------- death → zombie ---------- */
+  /* ---------- death → undead ---------- */
   killHero() {
     this.player.alive = false;
     this.player.setTint(0x555555);
@@ -201,20 +201,20 @@ this.tweens.add({
   repeat:   2          // 3 flashes total
 });
 
-    /* spawn zombie in 2 s */
-    this.time.delayedCall(2000, () => { glyph.destroy(); this.spawnZombie(); });
+    /* spawn undead in 2 s */
+    this.time.delayedCall(2000, () => { glyph.destroy(); this.spawnUndead(); });
   }
 
-  spawnZombie() {
+  spawnUndead() {
     const z = this.add
-      .sprite(this.player.x, this.player.y, 'zombie-dead')
+      .sprite(this.player.x, this.player.y, 'zombie-dead') // asset key unchanged
       .setOrigin(0.5, 1)
-      .play('zombie-rise');
+      .play('zombie-rise'); // asset key unchanged
 
     scaleToTile(z);                         // width → 64 px
     z.setScale(z.scaleX * 1.2);             // slight boost to match Raider
     z.gridX = this.player.gridX;
     z.gridY = this.player.gridY;
-    this.zombies.add(z);
+    this.undead.add(u);
   }
 }
