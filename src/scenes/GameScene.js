@@ -29,7 +29,7 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
 } else {
   key = Math.random() < 0.15 ? TILE.CRACKED : TILE.CLEAN;
 }
-        const tile = this.add.image(x * TILE_SIZE, y * TILE_SIZE, key).setOrigin(0);
+        const tile = this.add.image(x * TILE_SIZE, y * TILE_SIZE, key).setOrigin(0).setDepth(0);
         this.tileLayer.add(tile);
         this.grid[y][x] = { key, walkable: !key.startsWith('wall_') };
       }
@@ -46,7 +46,8 @@ const py = START_GY;
     const p1 = this.add
       .sprite(px * TILE_SIZE + TILE_SIZE / 2, py * TILE_SIZE + TILE_SIZE, 'raider')
       .setOrigin(0.5, 1)
-      .play('raider-idle');
+      .play('raider-idle')
+      .setDepth(10);
     scaleToTile(p1);
     p1.setScale(p1.scaleX * 1.2);
     p1.gridX = px;
@@ -58,18 +59,19 @@ const py = START_GY;
       p1.y - 54,
       p1.hp.toString(),
       { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
-    ).setOrigin(0.5, 1);
+    ).setOrigin(0.5, 1).setDepth(12);
     p1.spriteKey = 'raider';
     p1.walkKey = 'raider-walk';
     p1.attackKey = 'raider-attack';
     // Add shadow
-    p1.shadow = this.add.ellipse(p1.x, p1.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5);
+    p1.shadow = this.add.ellipse(p1.x, p1.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5).setDepth(9);
     this.survivors.push(p1);
     // Raider_2 (spawn at opposite corner)
     const p2 = this.add
       .sprite(8 * TILE_SIZE + TILE_SIZE / 2, 8 * TILE_SIZE + TILE_SIZE, 'raider2-idle')
       .setOrigin(0.5, 1)
-      .play('raider2-idle');
+      .play('raider2-idle')
+      .setDepth(10);
     scaleToTile(p2);
     p2.setScale(p2.scaleX * 1.2);
     p2.gridX = 8;
@@ -81,12 +83,12 @@ const py = START_GY;
       p2.y - 54,
       p2.hp.toString(),
       { font: '16px Arial', color: '#9ef', stroke: '#000', strokeThickness: 3 }
-    ).setOrigin(0.5, 1);
+    ).setOrigin(0.5, 1).setDepth(12);
     p2.spriteKey = 'raider2-idle';
     p2.walkKey = 'raider2-walk';
     p2.attackKey = 'raider2-attack';
     // Add shadow
-    p2.shadow = this.add.ellipse(p2.x, p2.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5);
+    p2.shadow = this.add.ellipse(p2.x, p2.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5).setDepth(9);
     this.survivors.push(p2);
     // Set active survivor
     this.activeSurvivorIndex = 0;
@@ -184,6 +186,14 @@ const py = START_GY;
       }
     });
     if (this.turn === 'player') {
+      // DEBUG: Reset .moving for all survivors and log their state
+      this.survivors.forEach((s, i) => {
+        if (s.moving) {
+          console.warn(`Survivor ${i + 1} (${s.spriteKey}) was stuck moving. Forcibly resetting.`);
+        }
+        s.moving = false;
+        console.log(`Survivor ${i + 1} alive=${s.alive} moving=${s.moving}`);
+      });
       // If all survivors are dead, game over
       if (!this.survivors.some(s => s.alive)) {
         // TODO: trigger game over UI
@@ -385,7 +395,7 @@ const py = START_GY;
       survivor.gridX * TILE_SIZE,
       survivor.gridY * TILE_SIZE,
       TILE.CORRUPT
-    ).setOrigin(0);
+    ).setOrigin(0).setDepth(1);
 
     // Immediately spawn an undead at survivor's position (full HP)
     // Only if no other undead is on this tile
@@ -410,7 +420,8 @@ const py = START_GY;
         const z = this.add
           .sprite(survivor.gridX * TILE_SIZE + TILE_SIZE / 2, survivor.gridY * TILE_SIZE + TILE_SIZE, 'zombie-dead')
           .setOrigin(0.5, 1)
-          .play('zombie-rise');
+          .play('zombie-rise')
+          .setDepth(10);
         scaleToTile(z);
         z.setScale(z.scaleX * 1.2);
         z.gridX = survivor.gridX;
@@ -421,8 +432,8 @@ const py = START_GY;
           z.y - 54,
           z.hp.toString(),
           { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
-        ).setOrigin(0.5, 1);
-        z.shadow = this.add.ellipse(z.x, z.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5);
+        ).setOrigin(0.5, 1).setDepth(12);
+        z.shadow = this.add.ellipse(z.x, z.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5).setDepth(9);
         this.undead.add(z);
       });
     }
