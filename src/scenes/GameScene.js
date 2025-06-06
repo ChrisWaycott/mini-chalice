@@ -106,37 +106,38 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ---------- infection-haze (simplified) ---------- */
+    /* ---------- infection-haze (new approach) ---------- */
     // Track which tiles have been revealed
     this.revealedTiles = Array(10).fill().map(() => Array(10).fill(false));
     
-    // Create a graphics object for the fog
-    this.hazeOverlay = this.add.graphics()
-      .fillStyle(0x000000, 0.8)  // 80% opaque black
-      .fillRect(0, 0, 640, 640)
-      .setDepth(1000);
+    // Create a container for the fog of war
+    this.fogContainer = this.add.container(0, 0).setDepth(1000);
+    
+    // Create a black overlay for the fog
+    this.fogOverlay = this.add.graphics()
+      .fillStyle(0x000000, 0.9)
+      .fillRect(0, 0, 640, 640);
+    this.fogContainer.add(this.fogOverlay);
     
     // Create a mask for the visible area
     this.visionMask = this.make.graphics()
       .fillStyle(0xffffff)
-      .fillCircle(0, 0, TILE_SIZE * 3)  // Initial position will be updated
-      .setDepth(1001);
+      .fillCircle(0, 0, TILE_SIZE * 2.5);
     
-    // Apply the mask to the overlay
-    this.hazeOverlay.setMask(
-      new Phaser.Display.Masks.GeometryMask(this, this.visionMask)
-    );
+    // Create a mask for revealed tiles
+    this.revealedMask = this.make.graphics()
+      .fillStyle(0xffffff, 0.6);
     
-    // Debug outline (temporary)
-    this.debugOutline = this.add.graphics()
-      .lineStyle(2, 0xff0000, 1)
-      .strokeRect(0, 0, 640, 640)
-      .setDepth(1002);
+    // Create a combined mask
+    this.combinedMask = this.make.graphics();
     
-    // Initial update of the mask position
+    // Apply the mask to the fog container
+    this.fogContainer.mask = new Phaser.Display.Masks.GeometryMask(this, this.combinedMask);
+    
+    // Initial update of the mask
     this.updateHazeMask();
     
-    console.log('Simplified infection haze created');
+    console.log('New infection haze implementation created');
 
     /* ---------- input ---------- */
     this.keys = this.input.keyboard.addKeys(
@@ -400,7 +401,7 @@ const py = START_GY;
     if (!this.player || !this.visionMask) return;
     
     // Update revealed tiles (3x3 area around player)
-    const visionRadius = 3; // in tiles
+    const visionRadius = 2; // in tiles
     const gx = Math.floor(this.player.x / TILE_SIZE);
     const gy = Math.floor(this.player.y / TILE_SIZE);
     
@@ -414,25 +415,20 @@ const py = START_GY;
       }
     }
     
-    // Update the mask position to follow the player
-    this.visionMask
-      .clear()
+    // Clear and update the vision mask (circle around player)
+    this.visionMask.clear()
       .fillStyle(0xffffff)
       .fillCircle(this.player.x, this.player.y, TILE_SIZE * 2.5);
     
-    // Create revealed tiles graphics if it doesn't exist
-    if (!this.revealedTilesGraphics) {
-      this.revealedTilesGraphics = this.add.graphics().setDepth(999);
-    }
-    
-    // Clear and redraw revealed tiles
-    this.revealedTilesGraphics.clear()
-      .fillStyle(0xffffff, 0.6);  // 60% opacity for revealed areas
-    
+    // Update the revealed areas mask
+    this.revealedMask.clear()
+      .fillStyle(0xffffff);
+      
+    // Draw all revealed tiles
     for (let y = 0; y < 10; y++) {
       for (let x = 0; x < 10; x++) {
         if (this.revealedTiles[y][x]) {
-          this.revealedTilesGraphics.fillRect(
+          this.revealedMask.fillRect(
             x * TILE_SIZE,
             y * TILE_SIZE,
             TILE_SIZE,
@@ -441,6 +437,14 @@ const py = START_GY;
         }
       }
     }
+    
+    // Combine both masks
+    this.combinedMask.clear()
+      .fillStyle(0x000000)
+      .fillRect(0, 0, 640, 640)
+      .blendModeAdd()
+      .draw(this.visionMask)
+      .draw(this.revealedMask);
   }
   
   // This will be called after the scene is fully created
