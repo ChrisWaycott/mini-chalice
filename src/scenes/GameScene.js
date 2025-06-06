@@ -371,7 +371,8 @@ const py = START_GY;
   /* ---------- infection-haze ---------- */
   refreshHaze() {
   this.hazeRT.clear();
-  this.hazeRT.fill(0x0f2f3f, 0.85);
+  // Darker color (almost black) with higher opacity
+  this.hazeRT.fill(0x050a0f, 0.95);
 
   this.hazeGraphics.clear();
   this.hazeGraphics.fillStyle(0xffffff, 1);
