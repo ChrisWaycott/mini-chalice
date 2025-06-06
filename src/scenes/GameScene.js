@@ -10,6 +10,8 @@ export default class GameScene extends Phaser.Scene {
   preload() { /* nothing */ }
 
   create() {
+    this.turn = 'player'; // 'player' or 'enemy'
+    this.playerHasMoved = false;
     /* ---------- map (10 × 10 floor) ---------- */
     this.grid      = [];
     this.tileLayer = this.add.layer();
@@ -101,24 +103,43 @@ this.player.gridY = START_GY;
   }
 
   update() {
-    /* hero movement */
-    if (!this.player.moving && this.player.alive) {
-      const dir = this.getDir();
-      if (dir) this.tryMove(dir.dx, dir.dy);
+    if (this.turn === 'player') {
+      if (!this.player.moving && this.player.alive && !this.playerHasMoved) {
+        const dir = this.getDir();
+        if (dir) {
+          this.tryMove(dir.dx, dir.dy);
+          this.playerHasMoved = true;
+        }
+      }
+      // End turn with ENTER
+      if (this.playerHasMoved && Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('ENTER'))) {
+        this.turn = 'enemy';
+        this.playerHasMoved = false;
+      }
+      // Death test key
+      if (this.player.alive && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
+        this.killHero();
+      }
+    } else if (this.turn === 'enemy') {
+      // Each undead moves 1 tile toward player
+      let anyMoving = false;
+      this.undead.getChildren().forEach((u) => {
+        if (u.moving) {
+          anyMoving = true;
+          return;
+        }
+        const dx = Math.sign(this.player.gridX - u.gridX);
+        const dy = Math.sign(this.player.gridY - u.gridY);
+        if (dx || dy) {
+          this.moveSprite(u, dx, dy);
+          anyMoving = true;
+        }
+      });
+      // Wait for all undead to finish moving before returning to player turn
+      if (!anyMoving) {
+        this.turn = 'player';
+      }
     }
-
-    /* death test key */
-    if (this.player.alive && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
-      this.killHero();
-    }
-
-    /* undead AI */
-    this.undead.getChildren().forEach((u) => {
-      if (u.moving) return;
-      const dx = Math.sign(this.player.gridX - u.gridX);
-      const dy = Math.sign(this.player.gridY - u.gridY);
-      if (dx || dy) this.moveSprite(u, dx, dy);
-    });
   }
 
   /* ---------- helpers ---------- */
