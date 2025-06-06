@@ -457,7 +457,6 @@ const py = START_GY;
       }
     });
   }
-}
 
   /* ---------- death → zombie ---------- */
   killSurvivor(survivor) {
@@ -528,12 +527,12 @@ const py = START_GY;
 
   spawnUndead() {
     const z = this.add
-      .sprite(this.player.x, this.player.y, 'zombie-dead') // asset key unchanged
+      .sprite(this.player.x, this.player.y, 'zombie-dead')
       .setOrigin(0.5, 1)
-      .play('zombie-rise'); // asset key unchanged
+      .play('zombie-rise');
 
-    scaleToTile(z);                         // width → 64 px
-    z.setScale(z.scaleX * 1.2);             // slight boost to match Raider
+    scaleToTile(z);
+    z.setScale(z.scaleX * 1.2);
     z.gridX = this.player.gridX;
     z.gridY = this.player.gridY;
     this.undead.add(z);
