@@ -38,29 +38,55 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     /* -------- hero start tile -------- */
 const START_GX = 1;          // grid X
 const START_GY = 1;          // grid Y
+const px = START_GX;
+const py = START_GY;
 
-    this.player = this.add
-      // feet start on bottom-edge of tile (y = TILE_SIZE)
-      .sprite(
-    START_GX * TILE_SIZE + TILE_SIZE / 2,   // x centre of tile (1)
-    START_GY * TILE_SIZE + TILE_SIZE,       // y feet on tile (1)
-    'raider-idle'
-  )
+    this.survivors = [];
+    // Raider_1
+    const p1 = this.add
+      .sprite(px * TILE_SIZE + TILE_SIZE / 2, py * TILE_SIZE + TILE_SIZE, 'raider')
       .setOrigin(0.5, 1)
       .play('raider-idle');
-
-    scaleToTile(this.player);                    // width → 64 px
-    this.player.setScale(this.player.scaleX * 1.6); // boost to compensate padding
-    this.player.gridX = START_GX;
-this.player.gridY = START_GY;
-    this.player.alive = true;
-    this.player.hp = 3;
-    this.player.hpText = this.add.text(
-      this.player.x,
-      this.player.y - 54,
-      this.player.hp.toString(),
+    scaleToTile(p1);
+    p1.setScale(p1.scaleX * 1.2);
+    p1.gridX = px;
+    p1.gridY = py;
+    p1.alive = true;
+    p1.hp = 3;
+    p1.hpText = this.add.text(
+      p1.x,
+      p1.y - 54,
+      p1.hp.toString(),
       { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
     ).setOrigin(0.5, 1);
+    p1.spriteKey = 'raider';
+    p1.walkKey = 'raider-walk';
+    p1.attackKey = 'raider-attack';
+    this.survivors.push(p1);
+    // Raider_2 (spawn at opposite corner)
+    const p2 = this.add
+      .sprite(8 * TILE_SIZE + TILE_SIZE / 2, 8 * TILE_SIZE + TILE_SIZE, 'raider2-idle')
+      .setOrigin(0.5, 1)
+      .play('raider2-idle');
+    scaleToTile(p2);
+    p2.setScale(p2.scaleX * 1.2);
+    p2.gridX = 8;
+    p2.gridY = 8;
+    p2.alive = true;
+    p2.hp = 3;
+    p2.hpText = this.add.text(
+      p2.x,
+      p2.y - 54,
+      p2.hp.toString(),
+      { font: '16px Arial', color: '#9ef', stroke: '#000', strokeThickness: 3 }
+    ).setOrigin(0.5, 1);
+    p2.spriteKey = 'raider2-idle';
+    p2.walkKey = 'raider2-walk';
+    p2.attackKey = 'raider2-attack';
+    this.survivors.push(p2);
+    // Set active survivor
+    this.activeSurvivorIndex = 0;
+    this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
     /* shadow (slightly above feet) */
     this.shadow = this.add.ellipse(
@@ -118,9 +144,20 @@ this.player.gridY = START_GY;
   }
 
   update() {
-    // Update HP text positions
-    this.player.hpText.setPosition(this.player.x, this.player.y - 54);
-    this.player.hpText.setText(this.player.hp.toString());
+    // Toggle between survivors with 1 and 2
+    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('ONE'))) {
+      this.activeSurvivorIndex = 0;
+      this.player = this.survivors[0];
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('TWO'))) {
+      this.activeSurvivorIndex = 1;
+      this.player = this.survivors[1];
+    }
+    // Update HP text positions for all survivors
+    this.survivors.forEach(s => {
+      s.hpText.setPosition(s.x, s.y - 54);
+      s.hpText.setText(s.hp.toString());
+    });
     this.undead.getChildren().forEach(u => {
       if (u.hpText) {
         u.hpText.setPosition(u.x, u.y - 54);
