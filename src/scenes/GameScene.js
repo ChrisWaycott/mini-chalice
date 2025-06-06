@@ -71,6 +71,33 @@ this.player.gridY = START_GY;
 
     /* undead */
     this.undead = this.add.group();
+
+    // Spawn multiple undead at mission start
+    const NUM_UNDEAD = 4;
+    const getRandomUndeadSpawn = () => {
+      let gx, gy;
+      do {
+        gx = Phaser.Math.Between(1, 8); // avoid walls (0,9)
+        gy = Phaser.Math.Between(1, 8);
+      } while (
+        (gx === this.player.gridX && gy === this.player.gridY) ||
+        !this.grid[gy][gx].walkable
+      );
+      return { gx, gy };
+    };
+
+    for (let i = 0; i < NUM_UNDEAD; i++) {
+      const { gx, gy } = getRandomUndeadSpawn();
+      const z = this.add
+        .sprite(gx * TILE_SIZE + TILE_SIZE / 2, gy * TILE_SIZE + TILE_SIZE, 'zombie-dead')
+        .setOrigin(0.5, 1)
+        .play('zombie-rise');
+      scaleToTile(z);
+      z.setScale(z.scaleX * 1.2);
+      z.gridX = gx;
+      z.gridY = gy;
+      this.undead.add(z);
+    }
   }
 
   update() {
