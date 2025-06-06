@@ -57,7 +57,7 @@ this.player.gridY = START_GY;
     this.player.hp = 3;
     this.player.hpText = this.add.text(
       this.player.x,
-      this.player.y - this.player.displayHeight,
+      this.player.y - 48,
       this.player.hp.toString(),
       { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
     ).setOrigin(0.5, 1);
@@ -109,7 +109,7 @@ this.player.gridY = START_GY;
       z.hp = 2;
       z.hpText = this.add.text(
         z.x,
-        z.y - z.displayHeight,
+        z.y - 48,
         z.hp.toString(),
         { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
       ).setOrigin(0.5, 1);
@@ -119,11 +119,11 @@ this.player.gridY = START_GY;
 
   update() {
     // Update HP text positions
-    this.player.hpText.setPosition(this.player.x, this.player.y - this.player.displayHeight);
+    this.player.hpText.setPosition(this.player.x, this.player.y - 48);
     this.player.hpText.setText(this.player.hp.toString());
     this.undead.getChildren().forEach(u => {
       if (u.hpText) {
-        u.hpText.setPosition(u.x, u.y - u.displayHeight);
+        u.hpText.setPosition(u.x, u.y - 48);
         u.hpText.setText(u.hp.toString());
       }
     });
