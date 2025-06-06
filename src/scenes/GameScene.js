@@ -107,9 +107,19 @@ const py = START_GY;
 
 
     /* ---------- infection-haze ---------- */
-    this.hazeRT       = this.make.renderTexture({ width: 640, height: 640, add: true });
+    console.log('Creating infection haze...');
+    this.hazeRT = this.make.renderTexture({ width: 640, height: 640, add: true });
+    this.hazeRT.setDepth(1000); // Ensure it's on top
+    
+    // Add a red border for debugging
+    const debugOutline = this.add.graphics();
+    debugOutline.lineStyle(4, 0xff0000, 1);
+    debugOutline.strokeRect(0, 0, 640, 640);
+    debugOutline.setDepth(1001);
+    
     this.hazeGraphics = this.make.graphics();
     this.refreshHaze();
+    console.log('Infection haze created');
 
     /* ---------- input ---------- */
     this.keys = this.input.keyboard.addKeys(
@@ -370,9 +380,10 @@ const py = START_GY;
 
   /* ---------- infection-haze ---------- */
   refreshHaze() {
+  console.log('Refreshing infection haze...');
   this.hazeRT.clear();
-  // Darker color (almost black) with higher opacity
-  this.hazeRT.fill(0x050a0f, 0.95);
+  // Solid red for debugging (change back to dark when working)
+  this.hazeRT.fill(0xff0000, 0.8);
 
   this.hazeGraphics.clear();
   this.hazeGraphics.fillStyle(0xffffff, 1);
