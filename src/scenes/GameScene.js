@@ -302,6 +302,7 @@ const py = START_GY;
         if (target.hpText) target.hpText.setText(target.hp.toString());
         if (target.hp <= 0) {
           if (target.hpText) target.hpText.destroy();
+          if (target.shadow) target.shadow.destroy();
           target.destroy();
           this.undead.remove(target);
         }
