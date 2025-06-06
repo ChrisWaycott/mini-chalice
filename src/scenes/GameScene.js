@@ -60,9 +60,7 @@ const py = START_GY;
       .setDepth(10)
       .play('raider-idle');
     scaleToTile(p1);
-    p1.setScale(p1.scaleX * 1.2);
-    scaleToTile(p1);
-    p1.setScale(p1.scaleX * 1.2);
+    p1.setScale(p1.scaleX * 1.6);
     p1.gridX = px;
     p1.gridY = py;
     p1.hp = 3;
@@ -86,9 +84,7 @@ const py = START_GY;
       .setDepth(10)
       .play('raider2-idle');
     scaleToTile(p2);
-    p2.setScale(p2.scaleX * 1.2);
-    scaleToTile(p2);
-    p2.setScale(p2.scaleX * 1.2);
+    p2.setScale(p2.scaleX * 1.6);
     p2.gridX = 8;
     p2.gridY = 8;
     p2.hp = 3;
