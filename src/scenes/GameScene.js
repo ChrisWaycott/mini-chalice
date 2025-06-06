@@ -235,7 +235,12 @@ const py = START_GY;
               my = Math.sign(dy);
             }
             if (mx !== 0 || my !== 0) {
-              this.moveSprite(u, mx, my);
+              // Prevent undead from moving onto survivors or other undead
+              const occupied = this.survivors.some(s => s.alive && s.gridX === u.gridX + mx && s.gridY === u.gridY + my) ||
+                this.undead.getChildren().some(other => other !== u && other.gridX === u.gridX + mx && other.gridY === u.gridY + my);
+              if (!occupied) {
+                this.moveSprite(u, mx, my);
+              }
             }
           }
         });
@@ -266,6 +271,8 @@ const py = START_GY;
     const ny = this.player.gridY + dy;
     if (nx < 0 || nx >= 10 || ny < 0 || ny >= 10) return;
     if (!this.grid[ny][nx].walkable) return;
+    // Prevent moving onto another survivor
+    if (this.survivors.some(s => s !== this.player && s.alive && s.gridX === nx && s.gridY === ny)) return;
     // Check for attack on undead
     const target = this.undead.getChildren().find(u => u.gridX === nx && u.gridY === ny);
     if (target) {
@@ -364,22 +371,25 @@ const py = START_GY;
     ).setOrigin(0);
 
     // Immediately spawn an undead at survivor's position (full HP)
-    const z = this.add
-      .sprite(survivor.gridX * TILE_SIZE + TILE_SIZE / 2, survivor.gridY * TILE_SIZE + TILE_SIZE, 'zombie-dead')
-      .setOrigin(0.5, 1)
-      .play('zombie-rise');
-    scaleToTile(z);
-    z.setScale(z.scaleX * 1.2);
-    z.gridX = survivor.gridX;
-    z.gridY = survivor.gridY;
-    z.hp = 2;
-    z.hpText = this.add.text(
-      z.x,
-      z.y - 54,
-      z.hp.toString(),
-      { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
-    ).setOrigin(0.5, 1);
-    this.undead.add(z);
+    // Only if no other undead is on this tile
+    if (!this.undead.getChildren().some(u => u.gridX === survivor.gridX && u.gridY === survivor.gridY)) {
+      const z = this.add
+        .sprite(survivor.gridX * TILE_SIZE + TILE_SIZE / 2, survivor.gridY * TILE_SIZE + TILE_SIZE, 'zombie-dead')
+        .setOrigin(0.5, 1)
+        .play('zombie-rise');
+      scaleToTile(z);
+      z.setScale(z.scaleX * 1.2);
+      z.gridX = survivor.gridX;
+      z.gridY = survivor.gridY;
+      z.hp = 2;
+      z.hpText = this.add.text(
+        z.x,
+        z.y - 54,
+        z.hp.toString(),
+        { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
+      ).setOrigin(0.5, 1);
+      this.undead.add(z);
+    }
 
     // Optionally, play a special effect for turning
     // (skip the delayed glyph/undead spawn)
