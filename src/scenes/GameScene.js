@@ -420,15 +420,19 @@ const py = START_GY;
       .fillStyle(0xffffff)
       .fillCircle(this.player.x, this.player.y, TILE_SIZE * 2.5);
     
-    // Draw revealed tiles (slightly darker than current vision)
-    const revealed = this.add.graphics()
-      .fillStyle(0xffffff, 0.6)  // 60% opacity for revealed areas
-      .setDepth(999);
+    // Create revealed tiles graphics if it doesn't exist
+    if (!this.revealedTilesGraphics) {
+      this.revealedTilesGraphics = this.add.graphics().setDepth(999);
+    }
+    
+    // Clear and redraw revealed tiles
+    this.revealedTilesGraphics.clear()
+      .fillStyle(0xffffff, 0.6);  // 60% opacity for revealed areas
     
     for (let y = 0; y < 10; y++) {
       for (let x = 0; x < 10; x++) {
         if (this.revealedTiles[y][x]) {
-          revealed.fillRect(
+          this.revealedTilesGraphics.fillRect(
             x * TILE_SIZE,
             y * TILE_SIZE,
             TILE_SIZE,
