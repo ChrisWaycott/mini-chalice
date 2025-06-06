@@ -55,8 +55,9 @@ const py = START_GY;
     this.survivors = [];
     // Raider_1
     const p1 = this.add
-      .sprite(px * TILE_SIZE + TILE_SIZE / 2, py * TILE_SIZE + TILE_SIZE, 'raider')
+      .sprite(px * TILE_SIZE + TILE_SIZE / 2, py * TILE_SIZE + TILE_SIZE, 'raider-idle')
       .setOrigin(0.5, 1)
+      .play('raider-idle')
       .setDepth(10);
     scaleToTile(p1);
     p1.setScale(p1.scaleX * 1.2);
@@ -69,7 +70,7 @@ const py = START_GY;
       p1.hp.toString(),
       { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
     ).setOrigin(0.5, 1).setDepth(12);
-    p1.spriteKey = 'raider';
+    p1.spriteKey = 'raider-idle';
     p1.walkKey = 'raider-walk';
     p1.attackKey = 'raider-attack';
     p1.idleKey = 'raider-idle';
@@ -80,6 +81,7 @@ const py = START_GY;
     const p2 = this.add
       .sprite(8 * TILE_SIZE + TILE_SIZE / 2, 8 * TILE_SIZE + TILE_SIZE, 'raider2-idle')
       .setOrigin(0.5, 1)
+      .play('raider2-idle')
       .setDepth(10);
     scaleToTile(p2);
     p2.setScale(p2.scaleX * 1.2);
