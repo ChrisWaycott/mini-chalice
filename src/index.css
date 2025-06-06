@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@import "@fontsource/inter/variable.css";
+
+body {
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
 /* optional reset to remove default body margin */
 html, body {
   margin: 0;

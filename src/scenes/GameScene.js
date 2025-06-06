@@ -68,7 +68,7 @@ const py = START_GY;
       p1.x,
       p1.y - 54,
       p1.hp.toString(),
-      { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
+      { font: '16px Inter', color: '#fff', stroke: '#000', strokeThickness: 3 }
     ).setOrigin(0.5, 1).setDepth(12);
     p1.spriteKey = 'raider-idle';
     p1.walkKey = 'raider-walk';
@@ -92,7 +92,7 @@ const py = START_GY;
       p2.x,
       p2.y - 54,
       p2.hp.toString(),
-      { font: '16px Arial', color: '#9ef', stroke: '#000', strokeThickness: 3 }
+      { font: '16px Inter', color: '#9ef', stroke: '#000', strokeThickness: 3 }
     ).setOrigin(0.5, 1).setDepth(12);
     p2.spriteKey = 'raider2-idle';
     p2.walkKey = 'raider2-walk';
@@ -149,7 +149,7 @@ const py = START_GY;
         z.x,
         z.y - 54,
         z.hp.toString(),
-        { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
+        { font: '16px Inter', color: '#fff', stroke: '#000', strokeThickness: 3 }
       ).setOrigin(0.5, 1);
       // Add shadow
       z.shadow = this.add.ellipse(z.x, z.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5);
@@ -452,7 +452,7 @@ const py = START_GY;
           z.x,
           z.y - 54,
           z.hp.toString(),
-          { font: '16px Arial', color: '#fff', stroke: '#000', strokeThickness: 3 }
+          { font: '16px Inter', color: '#fff', stroke: '#000', strokeThickness: 3 }
         ).setOrigin(0.5, 1).setDepth(12);
         z.shadow = this.add.ellipse(z.x, z.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5).setDepth(9);
         this.undead.add(z);
