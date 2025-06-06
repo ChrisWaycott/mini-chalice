@@ -291,9 +291,9 @@ const py = START_GY;
     // Check for attack on undead
     const target = this.undead.getChildren().find(u => u.gridX === nx && u.gridY === ny);
     if (target) {
-      // Flip player sprite for attack direction
+      // Flip survivor sprite for attack direction
       this.player.flipX = (target.gridX < this.player.gridX);
-      this.player.play('raider-attack', true);
+      this.player.play(this.player.attackKey || 'raider-attack', true);
       // Prevent immediate movement and further input
       this.player.moving = true;
       this.player.once('animationcomplete', () => {
@@ -315,7 +315,14 @@ const py = START_GY;
     sprite.moving = true;
     sprite.gridX += dx;
     sprite.gridY += dy;
-    sprite.play(sprite === this.player ? 'raider-walk' : 'zombie-walk'); // asset key unchanged
+    // Flip sprite based on intended movement direction (left = true, right = false)
+    if (dx !== 0) sprite.flipX = dx < 0;
+    // Play correct walk animation for survivors or undead
+    if (this.survivors.includes(sprite)) {
+      sprite.play(sprite.walkKey || 'raider-walk');
+    } else {
+      sprite.play('zombie-walk');
+    }
 
     const SHADOW_OFF = 4;
 
@@ -324,14 +331,15 @@ const py = START_GY;
       x: sprite.gridX * TILE_SIZE + TILE_SIZE / 2,
       y: sprite.gridY * TILE_SIZE + TILE_SIZE,   // feet on tile
       duration: MOVE_TWEEN_MS,
-      onUpdate: () => {
-        if (sprite === this.player)
-          this.shadow.setPosition(sprite.x, sprite.y - SHADOW_OFF);
-      },
+      onUpdate: () => {},
       onComplete: () => {
         sprite.moving = false;
-        sprite.play(sprite === this.player ? 'raider-idle' : 'zombie-walk'); // asset key unchanged
-        if (sprite === this.player) this.refreshFog();
+        // Idle animation for survivors or undead
+        if (this.survivors.includes(sprite)) {
+          sprite.play(sprite.idleKey || 'raider-idle');
+        } else {
+          sprite.play('zombie-walk');
+        }
         cb();
       },
     });
