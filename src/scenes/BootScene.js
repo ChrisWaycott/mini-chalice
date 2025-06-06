@@ -11,11 +11,15 @@ export default class BootScene extends Phaser.Scene {
       { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('raider-walk', '/assets/characters/Raider_1/Walk.png',
       { frameWidth: 128, frameHeight: 128 });
+    this.load.spritesheet('raider-attack', '/assets/characters/Raider_1/Attack_1.png',
+      { frameWidth: 128, frameHeight: 128 });
 
     /* Undead Man (96 × 96 per frame) */
     this.load.spritesheet('zombie-walk', '/assets/characters/Zombie_Man/Walk.png',
       { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('zombie-dead', '/assets/characters/Zombie_Man/Dead.png',
+      { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('zombie-attack', '/assets/characters/Zombie_Man/Attack_1.png',
       { frameWidth: 96, frameHeight: 96 });
 
     /* 64 × 64 tiles */
@@ -31,6 +35,9 @@ export default class BootScene extends Phaser.Scene {
     /* Animations */
     this.anims.create({ key: 'raider-idle', frames: 'raider-idle', frameRate: 4, repeat: -1 });
     this.anims.create({ key: 'raider-walk', frames: 'raider-walk', frameRate: 8, repeat: -1 });
+    this.anims.create({ key: 'raider-attack', frames: 'raider-attack', frameRate: 10, repeat: 0 });
+
+    this.anims.create({ key: 'zombie-attack', frames: 'zombie-attack', frameRate: 10, repeat: 0 });
 
     const dead = this.anims.generateFrameNumbers('zombie-dead');
     this.anims.create({ key: 'zombie-walk', frames: 'zombie-walk', frameRate: 6, repeat: -1 });
