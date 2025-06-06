@@ -106,10 +106,13 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ---------- infection-haze (simple) ---------- */
-    console.log('Creating simple infection haze...');
+    /* ---------- infection-haze (with memory) ---------- */
+    console.log('Creating infection haze with memory...');
     
-    // Create a black overlay for the infection haze
+    // Track which tiles have been revealed (10x10 grid)
+    this.revealedTiles = Array(10).fill().map(() => Array(10).fill(false));
+    
+    // Create a black overlay for the infection haze (slightly transparent)
     this.infectionHaze = this.add.graphics()
       .fillStyle(0x000000, 0.9)
       .fillRect(0, 0, 640, 640)
@@ -119,10 +122,15 @@ const py = START_GY;
     this.visionGraphics = this.add.graphics()
       .setDepth(1000);
     
-    // Set blend mode to erase the infection haze where we draw
-    this.visionGraphics.setBlendMode('DESTINATION_OUT');
+    // Create a graphics object for the revealed areas (dimmer than current vision)
+    this.revealedGraphics = this.add.graphics()
+      .setDepth(1000);
     
-    // Add debug border
+    // Set blend modes
+    this.visionGraphics.setBlendMode('DESTINATION_OUT');
+    this.revealedGraphics.setBlendMode('DESTINATION_OUT');
+    
+    // Add debug border (temporary)
     this.debugBorder = this.add.graphics()
       .lineStyle(2, 0xff0000, 1)
       .strokeRect(0, 0, 640, 640)
@@ -414,22 +422,50 @@ const py = START_GY;
 
   /* ---------- infection-haze ---------- */
   updateHazeMask() {
-    if (!this.survivors || !this.visionGraphics) {
-      console.log('Cannot update haze: survivors or vision graphics not ready');
+    if (!this.survivors || !this.visionGraphics || !this.revealedGraphics) {
+      console.log('Cannot update haze: graphics not ready');
       return;
     }
     
-    // Clear previous vision areas
+    // Clear previous vision and revealed areas
     this.visionGraphics.clear();
+    this.revealedGraphics.clear();
     
-    // Draw vision circles for all living survivors
+    // Update revealed tiles and draw vision circles for all living survivors
     this.survivors.forEach(survivor => {
       if (survivor && survivor.alive) {
+        const gridX = Math.floor(survivor.x / TILE_SIZE);
+        const gridY = Math.floor(survivor.y / TILE_SIZE);
+        
+        // Update revealed tiles in a 3x3 area around the survivor
+        const revealRadius = 3;
+        for (let y = -revealRadius; y <= revealRadius; y++) {
+          for (let x = -revealRadius; x <= revealRadius; x++) {
+            const nx = gridX + x;
+            const ny = gridY + y;
+            if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
+              this.revealedTiles[ny][nx] = true;
+            }
+          }
+        }
+        
+        // Draw current vision circle (fully visible)
         this.visionGraphics
           .fillStyle(0xffffff, 1)
-          .fillCircle(survivor.x, survivor.y, TILE_SIZE * 3);
+          .fillCircle(survivor.x, survivor.y, TILE_SIZE * 2.5);
       }
     });
+    
+    // Draw revealed areas (dimmer than current vision)
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        if (this.revealedTiles[y][x]) {
+          this.revealedGraphics
+            .fillStyle(0xffffff, 0.4)  // 40% opacity for revealed areas
+            .fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+      }
+    }
   }
   
   // This will be called after the scene is fully created
