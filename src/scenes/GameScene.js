@@ -309,8 +309,6 @@ const py = START_GY;
 
   moveSprite(sprite, dx, dy, cb = () => {}) {
     sprite.moving = true;
-    // Remove old shadow if it exists (prevents lingering shadows)
-    if (sprite.shadow) sprite.shadow.destroy();
     sprite.gridX += dx;
     sprite.gridY += dy;
     // Flip sprite based on intended movement direction (left = true, right = false)
@@ -322,8 +320,6 @@ const py = START_GY;
       sprite.play('zombie-walk');
     }
 
-    const SHADOW_OFF = 4;
-
     this.tweens.add({
       targets: sprite,
       x: sprite.gridX * TILE_SIZE + TILE_SIZE / 2,
@@ -331,8 +327,6 @@ const py = START_GY;
       duration: MOVE_TWEEN_MS,
       onUpdate: () => {},
       onComplete: () => {
-        // Create new shadow at new position
-        sprite.shadow = this.add.ellipse(sprite.x, sprite.y - SHADOW_OFF, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5);
         sprite.moving = false;
         // Idle animation for survivors or undead
         if (this.survivors.includes(sprite)) {
