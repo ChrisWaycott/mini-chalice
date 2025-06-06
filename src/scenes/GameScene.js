@@ -120,7 +120,8 @@ const py = START_GY;
         gx = Phaser.Math.Between(1, 8); // avoid walls (0,9)
         gy = Phaser.Math.Between(1, 8);
       } while (
-        (gx === this.player.gridX && gy === this.player.gridY) ||
+        this.survivors.some(s => s.alive && s.gridX === gx && s.gridY === gy) ||
+        this.undead && this.undead.getChildren().some(u => u.gridX === gx && u.gridY === gy) ||
         !this.grid[gy][gx].walkable
       );
       return { gx, gy };
@@ -395,7 +396,8 @@ const py = START_GY;
 
     // Immediately spawn an undead at survivor's position (full HP)
     // Only if no other undead is on this tile
-    if (!this.undead.getChildren().some(u => u.gridX === survivor.gridX && u.gridY === survivor.gridY)) {
+    if (!this.undead.getChildren().some(u => u.gridX === survivor.gridX && u.gridY === survivor.gridY) &&
+        !this.survivors.some(s => s !== survivor && s.alive && s.gridX === survivor.gridX && s.gridY === survivor.gridY)) {
       // Show spawn_glyph and pulse for 2s, then spawn undead
       const glyph = this.add.image(
         survivor.gridX * TILE_SIZE + TILE_SIZE / 2,
