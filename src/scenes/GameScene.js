@@ -106,35 +106,77 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ---------- infection-haze (with memory) ---------- */
-    console.log('Creating infection haze with memory...');
+    /* ---------- infection-haze (final) ---------- */
+    console.log('Creating infection haze...');
     
     // Track which tiles have been revealed (10x10 grid)
     this.revealedTiles = Array(10).fill().map(() => Array(10).fill(false));
     
-    // Create a black overlay for the infection haze (slightly transparent)
+    // Create the main game container
+    this.gameContainer = this.add.container(0, 0).setDepth(0);
+    
+    // Create the infection haze overlay (semi-transparent black)
     this.infectionHaze = this.add.graphics()
-      .fillStyle(0x000000, 0.9)
+      .fillStyle(0x000000, 0.85)
       .fillRect(0, 0, 640, 640)
-      .setDepth(999);
-    
-    // Create a graphics object for the visible areas
-    this.visionGraphics = this.add.graphics()
       .setDepth(1000);
     
-    // Create a graphics object for the revealed areas (dimmer than current vision)
-    this.revealedGraphics = this.add.graphics()
-      .setDepth(1000);
+    // Create a mask for visible areas (where we'll cut holes)
+    this.visionMask = this.make.graphics()
+      .fillStyle(0xffffff)
+      .setDepth(1001);
     
-    // Set blend modes
-    this.visionGraphics.setBlendMode('DESTINATION_OUT');
-    this.revealedGraphics.setBlendMode('DESTINATION_OUT');
+    // Create a container for revealed areas (semi-transparent)
+    this.revealedAreas = this.add.container(0, 0).setDepth(999);
+    
+    // Create a render texture for the game world
+    this.gameRenderTexture = this.add.renderTexture(0, 0, 640, 640)
+      .setOrigin(0, 0)
+      .setDepth(100);
+    
+    // Apply blur effect to the revealed areas using a post-fx pipeline
+    class HazePipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPipeline {
+      constructor(game) {
+        super({
+          game: game,
+          renderTarget: true,
+          fragShader: `
+            precision mediump float;
+            uniform sampler2D uMainSampler;
+            varying vec2 outTexCoord;
+            
+            void main() {
+              vec4 color = texture2D(uMainSampler, outTexCoord);
+              // Simple blur effect
+              vec4 sum = vec4(0.0);
+              float blurAmount = 0.002;
+              
+              for (int x = -2; x <= 2; x++) {
+                for (int y = -2; y <= 2; y++) {
+                  sum += texture2D(uMainSampler, outTexCoord + vec2(x, y) * blurAmount) * 0.04;
+                }
+              }
+              
+              // Darken and desaturate
+              float gray = dot(sum.rgb, vec3(0.299, 0.587, 0.114));
+              gl_FragColor = vec4(mix(sum.rgb, vec3(gray) * 0.7, 0.6), 0.7);
+            }
+          `
+        });
+      }
+    }
+    
+    // Register the pipeline
+    this.game.renderer.pipelines.add('HazePipeline', new HazePipeline(this.game));
+    
+    // Apply the pipeline to the revealed areas
+    this.revealedAreas.setPipeline('HazePipeline');
     
     // Add debug border (temporary)
     this.debugBorder = this.add.graphics()
       .lineStyle(2, 0xff0000, 1)
       .strokeRect(0, 0, 640, 640)
-      .setDepth(1001);
+      .setDepth(1002);
     
     // Initial update
     this.updateHazeMask();
@@ -422,16 +464,16 @@ const py = START_GY;
 
   /* ---------- infection-haze ---------- */
   updateHazeMask() {
-    if (!this.survivors || !this.visionGraphics || !this.revealedGraphics) {
+    if (!this.survivors || !this.visionMask) {
       console.log('Cannot update haze: graphics not ready');
       return;
     }
     
-    // Clear previous vision and revealed areas
-    this.visionGraphics.clear();
-    this.revealedGraphics.clear();
+    // Clear the previous mask and revealed areas
+    this.visionMask.clear();
+    this.revealedAreas.removeAll(true);
     
-    // Update revealed tiles and draw vision circles for all living survivors
+    // First pass: Update revealed tiles and draw current vision
     this.survivors.forEach(survivor => {
       if (survivor && survivor.alive) {
         const gridX = Math.floor(survivor.x / TILE_SIZE);
@@ -449,22 +491,40 @@ const py = START_GY;
           }
         }
         
-        // Draw current vision circle (fully visible)
-        this.visionGraphics
+        // Draw current vision circle (cut out of the mask)
+        this.visionMask
           .fillStyle(0xffffff, 1)
           .fillCircle(survivor.x, survivor.y, TILE_SIZE * 2.5);
       }
     });
     
-    // Draw revealed areas (dimmer than current vision)
+    // Second pass: Draw revealed areas with semi-transparent overlay
     for (let y = 0; y < 10; y++) {
       for (let x = 0; x < 10; x++) {
         if (this.revealedTiles[y][x]) {
-          this.revealedGraphics
-            .fillStyle(0xffffff, 0.4)  // 40% opacity for revealed areas
+          // Create a semi-transparent rectangle for revealed areas
+          const revealed = this.add.graphics()
+            .fillStyle(0x000000, 0.7)  // 70% opacity black
             .fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+          
+          this.revealedAreas.add(revealed);
         }
       }
+    }
+    
+    // Apply the mask to the infection haze
+    this.infectionHaze.setMask(
+      new Phaser.Display.Masks.GeometryMask(this, this.visionMask)
+    );
+    
+    // Ensure proper layering
+    this.revealedAreas.setDepth(999);
+    this.infectionHaze.setDepth(1000);
+    this.visionMask.setDepth(1001);
+    
+    // Refresh the pipeline
+    if (this.revealedAreas.pipeline) {
+      this.revealedAreas.pipeline.setFloat1('time', this.time.now);
     }
   }
   
