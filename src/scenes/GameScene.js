@@ -106,10 +106,10 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ---------- fog-of-war ---------- */
-    this.fogRT       = this.make.renderTexture({ width: 640, height: 640, add: true });
-    this.fogGraphics = this.make.graphics();
-    this.refreshFog();
+    /* ---------- infection-haze ---------- */
+    this.hazeRT       = this.make.renderTexture({ width: 640, height: 640, add: true });
+    this.hazeGraphics = this.make.graphics();
+    this.refreshHaze();
 
     /* ---------- input ---------- */
     this.keys = this.input.keyboard.addKeys(
@@ -368,36 +368,36 @@ const py = START_GY;
     });
   }
 
-  /* ---------- fog-of-war ---------- */
-  refreshFog() {
-  this.fogRT.clear();
-  this.fogRT.fill(0x0f2f3f, 0.85);
+  /* ---------- infection-haze ---------- */
+  refreshHaze() {
+  this.hazeRT.clear();
+  this.hazeRT.fill(0x0f2f3f, 0.85);
 
-  this.fogGraphics.clear();
-  this.fogGraphics.fillStyle(0xffffff, 1);
+  this.hazeGraphics.clear();
+  this.hazeGraphics.fillStyle(0xffffff, 1);
 
-  const radius = 3;                      // how far the hero can see
-  for (let dy = -radius; dy <= radius; dy++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      const gx = this.player.gridX + dx;
-      const gy = this.player.gridY + dy;
-      if (gx < 0 || gx >= 10 || gy < 0 || gy >= 10) continue;
-      if (Math.abs(dx) + Math.abs(dy) > radius) continue;   // diamond LoS
+  const visionRadius = 3; // tiles
+  const survivor = this.survivors[0]; // assuming player-controlled survivor
+  const gx = survivor.gridX;
+  const gy = survivor.gridY;
 
-      const tile = this.grid[gy][gx];
-      if (tile.key.startsWith('wall_')) continue;           // wall blocks sight
-
-      this.fogGraphics.fillRect(
-        gx * TILE_SIZE,
-        gy * TILE_SIZE,
-        TILE_SIZE,
-        TILE_SIZE
-      );
+  // Reveal area around survivor
+  for (let y = -visionRadius; y <= visionRadius; y++) {
+    for (let x = -visionRadius; x <= visionRadius; x++) {
+      const nx = gx + x;
+      const ny = gy + y;
+      if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
+        this.hazeGraphics.fillRect(
+          nx * TILE_SIZE,
+          ny * TILE_SIZE,
+          TILE_SIZE,
+          TILE_SIZE
+        );
+      }
     }
   }
 
-  /* reveal the visible tiles */
-  this.fogRT.erase(this.fogGraphics, this.fogGraphics);
+  this.hazeRT.erase(this.hazeGraphics, this.hazeGraphics);
 }
 
   /* ---------- death → zombie ---------- */
