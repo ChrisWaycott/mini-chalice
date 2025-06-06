@@ -92,12 +92,6 @@ const py = START_GY;
     this.activeSurvivorIndex = 0;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
-    /* shadow (slightly above feet) */
-    this.shadow = this.add.ellipse(
-      this.player.x,
-      this.player.y - 4,
-      36, 16, 0x000000, 0.3
-    );
 
     /* ---------- fog-of-war ---------- */
     this.fogRT       = this.make.renderTexture({ width: 640, height: 640, add: true });
