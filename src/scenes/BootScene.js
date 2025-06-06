@@ -18,7 +18,7 @@ export default class BootScene extends Phaser.Scene {
       { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('raider2-walk', '/assets/characters/Raider_2/Walk.png',
       { frameWidth: 128, frameHeight: 128 });
-    this.load.spritesheet('raider2-attack', '/assets/characters/Raider_2/Attack_1.png',
+    this.load.spritesheet('raider2-attack', '/assets/characters/Raider_2/Attack.png',
       { frameWidth: 128, frameHeight: 128 });
 
     /* Undead Man (96 × 96 per frame) */
