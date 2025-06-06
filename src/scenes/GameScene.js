@@ -57,8 +57,10 @@ const py = START_GY;
     const p1 = this.add
       .sprite(px * TILE_SIZE + TILE_SIZE / 2, py * TILE_SIZE + TILE_SIZE, 'raider-idle')
       .setOrigin(0.5, 1)
-      .play('raider-idle')
-      .setDepth(10);
+      .setDepth(10)
+      .play('raider-idle');
+    scaleToTile(p1);
+    p1.setScale(p1.scaleX * 1.2);
     scaleToTile(p1);
     p1.setScale(p1.scaleX * 1.2);
     p1.gridX = px;
@@ -81,8 +83,10 @@ const py = START_GY;
     const p2 = this.add
       .sprite(8 * TILE_SIZE + TILE_SIZE / 2, 8 * TILE_SIZE + TILE_SIZE, 'raider2-idle')
       .setOrigin(0.5, 1)
-      .play('raider2-idle')
-      .setDepth(10);
+      .setDepth(10)
+      .play('raider2-idle');
+    scaleToTile(p2);
+    p2.setScale(p2.scaleX * 1.2);
     scaleToTile(p2);
     p2.setScale(p2.scaleX * 1.2);
     p2.gridX = 8;
