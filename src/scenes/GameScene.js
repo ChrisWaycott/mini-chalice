@@ -145,13 +145,22 @@ const py = START_GY;
 
   update() {
     // Toggle between survivors with 1 and 2
-    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('ONE'))) {
+    // Only allow toggling to alive survivors
+    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('ONE')) && this.survivors[0].alive) {
       this.activeSurvivorIndex = 0;
       this.player = this.survivors[0];
     }
-    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('TWO'))) {
+    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('TWO')) && this.survivors[1].alive) {
       this.activeSurvivorIndex = 1;
       this.player = this.survivors[1];
+    }
+    // If active survivor is dead, auto-switch to next alive
+    if (!this.player.alive) {
+      const nextAlive = this.survivors.findIndex(s => s.alive);
+      if (nextAlive !== -1) {
+        this.activeSurvivorIndex = nextAlive;
+        this.player = this.survivors[nextAlive];
+      }
     }
     // Update HP text positions for all survivors
     this.survivors.forEach(s => {
@@ -165,6 +174,11 @@ const py = START_GY;
       }
     });
     if (this.turn === 'player') {
+      // If all survivors are dead, game over
+      if (!this.survivors.some(s => s.alive)) {
+        // TODO: trigger game over UI
+        return;
+      }
       if (!this.player.moving && this.player.alive && this.playerMovesLeft > 0) {
         const dir = this.getDir();
         if (dir) {
@@ -178,28 +192,42 @@ const py = START_GY;
       }
       // Death test key
       if (this.player.alive && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
-        this.killHero();
+        this.killSurvivor(this.player);
       }
     } else if (this.turn === 'enemy') {
       if (!this.enemyMoved) {
         this.undead.getChildren().forEach((u) => {
           if (!u.moving) {
-            // Check if adjacent to player for attack
-            if (Math.abs(u.gridX - this.player.gridX) + Math.abs(u.gridY - this.player.gridY) === 1) {
+            // Find any adjacent alive survivor
+            const targetSurvivor = this.survivors.find(s => s.alive && Math.abs(u.gridX - s.gridX) + Math.abs(u.gridY - s.gridY) === 1);
+            if (targetSurvivor) {
               // Flip undead sprite for attack direction
-              u.flipX = (this.player.gridX < u.gridX);
+              u.flipX = (targetSurvivor.gridX < u.gridX);
               u.play('zombie-attack', true);
-              this.player.hp -= 1;
-              if (this.player.hpText) this.player.hpText.setText(this.player.hp.toString());
-              if (this.player.hp <= 0) {
-                this.player.hpText.destroy();
-                this.killHero();
+              targetSurvivor.hp -= 1;
+              if (targetSurvivor.hpText) targetSurvivor.hpText.setText(targetSurvivor.hp.toString());
+              if (targetSurvivor.hp <= 0) {
+                if (targetSurvivor.hpText) targetSurvivor.hpText.destroy();
+                this.killSurvivor(targetSurvivor);
               }
               // No move if attacking
               return;
             }
-            const dx = this.player.gridX - u.gridX;
-            const dy = this.player.gridY - u.gridY;
+            // Move toward nearest alive survivor
+            const aliveSurvivors = this.survivors.filter(s => s.alive);
+            if (aliveSurvivors.length === 0) return; // no targets left
+            // Find closest survivor
+            let closest = aliveSurvivors[0];
+            let minDist = Math.abs(u.gridX - closest.gridX) + Math.abs(u.gridY - closest.gridY);
+            for (const s of aliveSurvivors) {
+              const dist = Math.abs(u.gridX - s.gridX) + Math.abs(u.gridY - s.gridY);
+              if (dist < minDist) {
+                minDist = dist;
+                closest = s;
+              }
+            }
+            const dx = closest.gridX - u.gridX;
+            const dy = closest.gridY - u.gridY;
             let mx = 0, my = 0;
             if (Math.abs(dx) > Math.abs(dy)) {
               mx = Math.sign(dx);
@@ -320,38 +348,42 @@ const py = START_GY;
 }
 
   /* ---------- death → zombie ---------- */
-  killHero() {
-    this.player.alive = false;
-    this.player.setTint(0x555555);
+  killSurvivor(survivor) {
+    survivor.alive = false;
+    survivor.setTint(0x555555);
 
     /* corrupt tile */
-    const t = this.grid[this.player.gridY][this.player.gridX];
+    const t = this.grid[survivor.gridY][survivor.gridX];
     t.key      = TILE.CORRUPT;
     t.walkable = false;
     this.add.image(
-      this.player.gridX * TILE_SIZE,
-      this.player.gridY * TILE_SIZE,
+      survivor.gridX * TILE_SIZE,
+      survivor.gridY * TILE_SIZE,
       TILE.CORRUPT
     ).setOrigin(0);
 
     /* ── Cyan spawn-glyph pulse (2-turn warning) ───────────────── */
-const glyph = this.add.image(
-  this.player.gridX * TILE_SIZE + TILE_SIZE / 2,
-  this.player.gridY * TILE_SIZE + TILE_SIZE / 2,
-  'spawn_glyph'
-).setDepth(10).setScale(0.8).setAlpha(0);
+    const glyph = this.add.image(
+      survivor.gridX * TILE_SIZE + TILE_SIZE / 2,
+      survivor.gridY * TILE_SIZE + TILE_SIZE / 2,
+      'spawn_glyph'
+    ).setDepth(10).setScale(0.8).setAlpha(0);
 
-this.tweens.add({
-  targets: glyph,
-  alpha:   1,
-  scale:   1,
-  duration: 400,
-  yoyo:     true,
-  repeat:   2          // 3 flashes total
-});
+    this.tweens.add({
+      targets: glyph,
+      alpha:   1,
+      scale:   1,
+      duration: 400,
+      yoyo:     true,
+      repeat:   2          // 3 flashes total
+    });
 
     /* spawn undead in 2 s */
     this.time.delayedCall(2000, () => { glyph.destroy(); this.spawnUndead(); });
+  }
+  // For compatibility
+  killHero() {
+    this.killSurvivor(this.player);
   }
 
   spawnUndead() {
