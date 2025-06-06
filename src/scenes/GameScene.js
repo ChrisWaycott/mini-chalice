@@ -46,13 +46,11 @@ const py = START_GY;
     const p1 = this.add
       .sprite(px * TILE_SIZE + TILE_SIZE / 2, py * TILE_SIZE + TILE_SIZE, 'raider')
       .setOrigin(0.5, 1)
-      .play('raider-idle')
       .setDepth(10);
     scaleToTile(p1);
     p1.setScale(p1.scaleX * 1.2);
     p1.gridX = px;
     p1.gridY = py;
-    p1.alive = true;
     p1.hp = 3;
     p1.hpText = this.add.text(
       p1.x,
@@ -63,20 +61,19 @@ const py = START_GY;
     p1.spriteKey = 'raider';
     p1.walkKey = 'raider-walk';
     p1.attackKey = 'raider-attack';
-    // Add shadow
+    p1.idleKey = 'raider-idle';
+    p1.alive = true;
     p1.shadow = this.add.ellipse(p1.x, p1.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5).setDepth(9);
     this.survivors.push(p1);
     // Raider_2 (spawn at opposite corner)
     const p2 = this.add
       .sprite(8 * TILE_SIZE + TILE_SIZE / 2, 8 * TILE_SIZE + TILE_SIZE, 'raider2-idle')
       .setOrigin(0.5, 1)
-      .play('raider2-idle')
       .setDepth(10);
     scaleToTile(p2);
     p2.setScale(p2.scaleX * 1.2);
     p2.gridX = 8;
     p2.gridY = 8;
-    p2.alive = true;
     p2.hp = 3;
     p2.hpText = this.add.text(
       p2.x,
@@ -87,7 +84,8 @@ const py = START_GY;
     p2.spriteKey = 'raider2-idle';
     p2.walkKey = 'raider2-walk';
     p2.attackKey = 'raider2-attack';
-    // Add shadow
+    p2.idleKey = 'raider2-idle';
+    p2.alive = true;
     p2.shadow = this.add.ellipse(p2.x, p2.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5).setDepth(9);
     this.survivors.push(p2);
     // Set active survivor
@@ -165,6 +163,7 @@ const py = START_GY;
         this.player = this.survivors[nextAlive];
       }
     }
+
     // Update HP text positions for all survivors
     this.survivors.forEach(s => {
       s.hpText.setPosition(s.x, s.y - 54);
@@ -200,7 +199,7 @@ const py = START_GY;
         return;
       }
       if (!this.player.moving && this.player.alive && this.playerMovesLeft > 0) {
-        const dir = this.getDir();
+        const dir = this.getDirJustDown();
         if (dir) {
           this.tryMove(dir.dx, dir.dy);
           this.playerMovesLeft--;
@@ -277,14 +276,14 @@ const py = START_GY;
   }
 
   /* ---------- helpers ---------- */
-  getDir() {
-    const k = this.keys;
-    if (k.LEFT.isDown  || k.A.isDown) return { dx: -1, dy: 0 };
-    if (k.RIGHT.isDown || k.D.isDown) return { dx:  1, dy: 0 };
-    if (k.UP.isDown    || k.W.isDown) return { dx:  0, dy: -1 };
-    if (k.DOWN.isDown  || k.S.isDown) return { dx:  0, dy: 1 };
-    return null;
-  }
+  getDirJustDown() {
+  const input = this.input.keyboard;
+  if (Phaser.Input.Keyboard.JustDown(input.addKey('LEFT'))  || Phaser.Input.Keyboard.JustDown(input.addKey('A'))) return { dx: -1, dy: 0 };
+  if (Phaser.Input.Keyboard.JustDown(input.addKey('RIGHT')) || Phaser.Input.Keyboard.JustDown(input.addKey('D'))) return { dx:  1, dy: 0 };
+  if (Phaser.Input.Keyboard.JustDown(input.addKey('UP'))    || Phaser.Input.Keyboard.JustDown(input.addKey('W'))) return { dx:  0, dy: -1 };
+  if (Phaser.Input.Keyboard.JustDown(input.addKey('DOWN'))  || Phaser.Input.Keyboard.JustDown(input.addKey('S'))) return { dx:  0, dy: 1 };
+  return null;
+}
 
   tryMove(dx, dy) {
     const nx = this.player.gridX + dx;
@@ -298,7 +297,14 @@ const py = START_GY;
     if (target) {
       // Flip survivor sprite for attack direction
       this.player.flipX = (target.gridX < this.player.gridX);
-      this.player.play(this.player.attackKey || 'raider-attack', true);
+      // Defensive animation check
+      const attackAnim = this.player.attackKey || 'raider-attack';
+      if (!this.anims.exists(attackAnim)) {
+        console.error(`Missing attack animation: '${attackAnim}' for survivor`, this.player);
+        this.player.moving = false;
+        return;
+      }
+      this.player.play(attackAnim, true);
       // Prevent immediate movement and further input
       this.player.moving = true;
       this.player.once('animationcomplete', () => {
