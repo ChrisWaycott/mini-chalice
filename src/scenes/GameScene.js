@@ -107,7 +107,7 @@ const py = START_GY;
 
 
     /* ========== INFECTION HAZE SYSTEM ========== */
-    console.log('Initializing hybrid Infection Haze system...');
+    console.log('Initializing hybrid Infection Haze system...', new Date().toISOString());
     
     // Track tile states: 0=unexplored, 1=explored (fully visible)
     this.infectionHaze = Array(10).fill().map(() => Array(10).fill(0));
