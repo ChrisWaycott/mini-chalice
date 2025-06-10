@@ -106,46 +106,33 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ========== FOG OF WAR SYSTEM ========== */
-    console.log('Initializing RTS-style fog of war...');
+    /* ========== INFECTION HAZE SYSTEM ========== */
+    console.log('Initializing hybrid Infection Haze system...');
     
-    // Track tile states: 0=unexplored, 1=explored, 2=visible
-    this.fogOfWar = Array(10).fill().map(() => Array(10).fill(0));
+    // Track tile states: 0=unexplored, 1=explored (fully visible)
+    this.infectionHaze = Array(10).fill().map(() => Array(10).fill(0));
     
-    // Create fog of war layers
-    this.fogLayers = {
-      // Unexplored fog (black)
+    // Create infection haze layers
+    this.hazeLayers = {
+      // Unexplored area (biohazard smog)
       unexplored: this.add.graphics()
-        .fillStyle(0x000000, 1)
-        .fillRect(0, 0, 640, 640)
+        .fillStyle(0x2a5c2a, 0.9) // Dark green biohazard color
+        .fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE)
         .setDepth(1000),
       
-      // Explored but not visible (darkened)
-      explored: this.add.graphics()
-        .fillStyle(0x111111, 0.8)
-        .fillRect(0, 0, 640, 640)
-        .setDepth(1001),
-      
-      // Currently visible (masked by vision)
-      visible: this.add.graphics()
-        .fillStyle(0x000000, 0)
-        .fillRect(0, 0, 640, 640)
-        .setDepth(1002)
+      // Edge of vision (gradient transition)
+      edge: this.add.graphics()
+        .setDepth(1001)
     };
     
-    // Create vision mask (where units can see)
-    this.visionMask = this.make.graphics()
-      .fillStyle(0xffffff, 1)
-      .setDepth(1003);
+    // Add biohazard pattern overlay (simulated with graphics)
+    this.biohazardOverlay = this.add.graphics()
+      .setDepth(1002);
+    this.drawBiohazardPattern();
     
-    // Apply vision mask to the explored layer
-    this.fogLayers.explored.mask = new Phaser.Display.Masks.GeometryMask(this, this.visionMask);
-    
-    // Add debug border (temporary)
-    this.debugBorder = this.add.graphics()
-      .lineStyle(2, 0xff0000, 1)
-      .strokeRect(0, 0, 640, 640)
-      .setDepth(1004);
+    // Remove old fog system references
+    if (this.visionMask) this.visionMask.destroy();
+    if (this.debugBorder) this.debugBorder.destroy();
       
     // Track visible tiles for the current frame
     this.currentVisibleTiles = new Set();
@@ -435,97 +422,111 @@ const py = START_GY;
   }
 
   /* ---------- infection-haze ---------- */
+  // Draw biohazard pattern for unexplored areas
+  drawBiohazardPattern() {
+    const pattern = this.textures.createCanvas('biohazardPattern', 32, 32);
+    const ctx = pattern.getContext();
+    
+    // Draw biohazard symbol (simplified)
+    ctx.fillStyle = '#3a7a3a';
+    ctx.beginPath();
+    // Center circle
+    ctx.arc(16, 16, 10, 0, Math.PI * 2);
+    // Three blades
+    for (let i = 0; i < 3; i++) {
+      const angle = (i * 120) * (Math.PI / 180);
+      ctx.moveTo(16, 16);
+      ctx.arc(16, 16, 20, angle - 0.3, angle + 0.3);
+      ctx.lineTo(16 + Math.cos(angle) * 25, 16 + Math.sin(angle) * 25);
+      ctx.arc(16, 16, 25, angle + 0.3, angle - 0.3, true);
+      ctx.closePath();
+    }
+    ctx.fill();
+    
+    pattern.refresh();
+  }
+  
   updateHazeMask() {
-    if (!this.survivors || !this.visionMask) {
-      console.log('Fog of war: graphics not ready');
+    if (!this.survivors || !this.hazeLayers) {
+      console.log('Infection Haze: graphics not ready');
       return;
     }
     
-    // Clear previous frame's visible tiles
-    this.currentVisibleTiles.clear();
+    // Clear previous frame
+    this.hazeLayers.edge.clear();
+    this.biohazardOverlay.clear();
     
-    // Clear and prepare the vision mask
-    this.visionMask.clear();
-    this.visionMask.fillStyle(0xffffff, 1);
-    
-    // Update fog state for all living survivors
+    // Update visibility for all living survivors
     this.survivors.forEach(survivor => {
       if (survivor && survivor.alive) {
         const centerX = Math.floor(survivor.x / TILE_SIZE);
         const centerY = Math.floor(survivor.y / TILE_SIZE);
         const visionRadius = 3; // Tiles
+        const fullVisionRadius = 2; // Tiles for full visibility
         
         // Update visibility in a circle around the survivor
         for (let y = -visionRadius; y <= visionRadius; y++) {
           for (let x = -visionRadius; x <= visionRadius; x++) {
             const nx = centerX + x;
             const ny = centerY + y;
+            const distSq = x * x + y * y;
             
             // Check if within vision radius (circle check)
-            if (x*x + y*y <= visionRadius * visionRadius && 
+            if (distSq <= visionRadius * visionRadius && 
                 nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
               
-              // Mark as explored and visible
-              this.fogOfWar[ny][nx] = 2; // 2 = visible
-              this.currentVisibleTiles.add(`${nx},${ny}`);
+              // Mark as explored
+              this.infectionHaze[ny][nx] = 1;
               
-              // Draw vision circle (this will be cut out of the fog)
-              this.visionMask.fillCircle(
-                (nx + 0.5) * TILE_SIZE,
-                (ny + 0.5) * TILE_SIZE,
-                TILE_SIZE * 0.8 // Slightly smaller than tile to show grid
-              );
+              // Calculate opacity based on distance (for edge effect)
+              if (distSq > fullVisionRadius * fullVisionRadius) {
+                const dist = Math.sqrt(distSq);
+                const opacity = Phaser.Math.Clamp(
+                  (dist - fullVisionRadius) / (visionRadius - fullVisionRadius) * 0.8,
+                  0.3, 0.8
+                );
+                
+                // Draw edge effect
+                this.hazeLayers.edge.fillStyle(0x2a5c2a, opacity);
+                this.hazeLayers.edge.fillRect(
+                  nx * TILE_SIZE,
+                  ny * TILE_SIZE,
+                  TILE_SIZE,
+                  TILE_SIZE
+                );
+              }
             }
           }
         }
       }
     });
     
-    // Update explored areas (previously visible, now out of sight)
+    // Draw biohazard pattern over unexplored areas
     for (let y = 0; y < 10; y++) {
       for (let x = 0; x < 10; x++) {
-        const key = `${x},${y}`;
-        // If tile was visible last frame but not now, mark as explored
-        if (this.fogOfWar[y][x] === 2 && !this.currentVisibleTiles.has(key)) {
-          this.fogOfWar[y][x] = 1; // 1 = explored but not visible
+        if (this.infectionHaze[y][x] === 0) { // Unexplored
+          this.biohazardOverlay.fillStyle(0x3a7a3a, 0.3);
+          this.biohazardOverlay.fillRect(
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            TILE_SIZE,
+            TILE_SIZE
+          );
         }
-      }
-    }
-    
-    // Update fog layers based on current state
-    this.fogLayers.unexplored.clear();
-    this.fogLayers.explored.clear();
-    this.fogLayers.visible.clear();
-    
-    // Draw appropriate fog for each tile
-    for (let y = 0; y < 10; y++) {
-      for (let x = 0; x < 10; x++) {
-        const state = this.fogOfWar[y][x];
-        const xPos = x * TILE_SIZE;
-        const yPos = y * TILE_SIZE;
-        
-        if (state === 0) { // Unexplored
-          this.fogLayers.unexplored.fillStyle(0x000000, 1);
-          this.fogLayers.unexplored.fillRect(xPos, yPos, TILE_SIZE, TILE_SIZE);
-        } else if (state === 1) { // Explored but not visible
-          this.fogLayers.explored.fillStyle(0x111111, 0.8);
-          this.fogLayers.explored.fillRect(xPos, yPos, TILE_SIZE, TILE_SIZE);
-        }
-        // State 2 is visible, so no fog is drawn
       }
     }
   }
   
   // This will be called after the scene is fully created
   createPost() {
-    // Initialize fog of war after everything is set up
+    // Ensure the infection haze is properly initialized
     this.time.delayedCall(100, () => {
       if (this.updateHazeMask) {
         this.updateHazeMask();
       }
     });
     
-    // Update fog of war every 100ms for smooth updates
+    // Update infection haze periodically for smooth transitions
     this.time.addEvent({
       delay: 100,
       callback: this.updateHazeMask,
