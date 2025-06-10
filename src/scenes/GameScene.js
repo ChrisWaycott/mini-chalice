@@ -411,7 +411,7 @@ const py = START_GY;
       return;
     }
     
-    // Clear and redraw the entire layer each frame
+    // Clear and begin new drawing
     this.hazeLayer.clear();
     
     // Draw base haze over everything
@@ -456,7 +456,7 @@ const py = START_GY;
       }
     });
     
-    // Draw edge areas first (semi-transparent)
+    // Draw edge areas (semi-transparent)
     this.hazeLayer.fillStyle(0x1a3a1a, 0.6);
     edgeTiles.forEach(tile => {
       const [x, y] = tile.split(',').map(Number);
@@ -468,10 +468,11 @@ const py = START_GY;
       );
     });
     
-    // Then clear fully visible areas (will be on top of edge areas)
+    // Draw visible areas (clear by drawing a transparent rectangle)
+    this.hazeLayer.fillStyle(0x000000, 0);
     visibleTiles.forEach(tile => {
       const [x, y] = tile.split(',').map(Number);
-      this.hazeLayer.clearRect(
+      this.hazeLayer.fillRect(
         x * TILE_SIZE,
         y * TILE_SIZE,
         TILE_SIZE,
