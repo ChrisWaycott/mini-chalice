@@ -106,45 +106,28 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ========== INFECTION HAZE SYSTEM ========== */
-    console.log('Initializing hybrid Infection Haze system...', new Date().toISOString());
+    /* ========== SIMPLE INFECTION HAZE ========== */
+    console.log('Initializing simple Infection Haze system...', new Date().toISOString());
     
     // Track tile states: 0=unexplored, 1=explored (fully visible)
     this.infectionHaze = Array(10).fill().map(() => Array(10).fill(0));
     
-    // Create infection haze layers
-    this.hazeLayers = {
-      // Unexplored area (biohazard smog)
-      unexplored: this.add.graphics()
-        .fillStyle(0x2a5c2a, 0.9) // Dark green biohazard color
-        .fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE)
-        .setDepth(1000),
-      
-      // Edge of vision (gradient transition)
-      edge: this.add.graphics()
-        .setDepth(1001)
-    };
+    // Create a single graphics layer for the haze
+    this.hazeLayer = this.add.graphics()
+      .setDepth(1000);
     
-    // Add biohazard pattern overlay (simulated with graphics)
-    this.biohazardOverlay = this.add.graphics()
-      .setDepth(1002);
-    this.drawBiohazardPattern();
-    
-    // Remove old fog system references
-    if (this.visionMask) this.visionMask.destroy();
-    if (this.debugBorder) this.debugBorder.destroy();
-      
-    // Track visible tiles for the current frame
-    this.currentVisibleTiles = new Set();
+    // Store visible tiles for reference
+    this.visibleTiles = new Set();
     
     // Initial update
     this.updateHazeMask();
     
-    // Ensure the haze is updated after all assets are loaded
-    this.time.delayedCall(500, () => {
-      if (this.updateHazeMask) {
-        this.updateHazeMask();
-      }
+    // Update haze periodically for smooth transitions
+    this.time.addEvent({
+      delay: 100,
+      callback: this.updateHazeMask,
+      callbackScope: this,
+      loop: true
     });
     
     console.log('Simple infection haze ready');
@@ -422,41 +405,24 @@ const py = START_GY;
   }
 
   /* ---------- infection-haze ---------- */
-  // Draw biohazard pattern for unexplored areas
-  drawBiohazardPattern() {
-    const pattern = this.textures.createCanvas('biohazardPattern', 32, 32);
-    const ctx = pattern.getContext();
-    
-    // Draw biohazard symbol (simplified)
-    ctx.fillStyle = '#3a7a3a';
-    ctx.beginPath();
-    // Center circle
-    ctx.arc(16, 16, 10, 0, Math.PI * 2);
-    // Three blades
-    for (let i = 0; i < 3; i++) {
-      const angle = (i * 120) * (Math.PI / 180);
-      ctx.moveTo(16, 16);
-      ctx.arc(16, 16, 20, angle - 0.3, angle + 0.3);
-      ctx.lineTo(16 + Math.cos(angle) * 25, 16 + Math.sin(angle) * 25);
-      ctx.arc(16, 16, 25, angle + 0.3, angle - 0.3, true);
-      ctx.closePath();
-    }
-    ctx.fill();
-    
-    pattern.refresh();
-  }
-  
   updateHazeMask() {
-    if (!this.survivors || !this.hazeLayers) {
+    if (!this.survivors || !this.hazeLayer) {
       console.log('Infection Haze: graphics not ready');
       return;
     }
     
-    // Clear previous frame
-    this.hazeLayers.edge.clear();
-    this.biohazardOverlay.clear();
+    // Clear and redraw the entire layer each frame
+    this.hazeLayer.clear();
     
-    // Update visibility for all living survivors
+    // Draw base haze over everything
+    this.hazeLayer.fillStyle(0x1a3a1a, 0.9);
+    this.hazeLayer.fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE);
+    
+    // Track visible and edge tiles
+    const visibleTiles = new Set();
+    const edgeTiles = new Set();
+    
+    // First pass: identify all visible and edge tiles
     this.survivors.forEach(survivor => {
       if (survivor && survivor.alive) {
         const centerX = Math.floor(survivor.x / TILE_SIZE);
@@ -464,36 +430,25 @@ const py = START_GY;
         const visionRadius = 3; // Tiles
         const fullVisionRadius = 2; // Tiles for full visibility
         
-        // Update visibility in a circle around the survivor
         for (let y = -visionRadius; y <= visionRadius; y++) {
           for (let x = -visionRadius; x <= visionRadius; x++) {
             const nx = centerX + x;
             const ny = centerY + y;
             const distSq = x * x + y * y;
             
-            // Check if within vision radius (circle check)
             if (distSq <= visionRadius * visionRadius && 
                 nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
               
-              // Mark as explored
               this.infectionHaze[ny][nx] = 1;
               
-              // Calculate opacity based on distance (for edge effect)
-              if (distSq > fullVisionRadius * fullVisionRadius) {
-                const dist = Math.sqrt(distSq);
-                const opacity = Phaser.Math.Clamp(
-                  (dist - fullVisionRadius) / (visionRadius - fullVisionRadius) * 0.8,
-                  0.3, 0.8
-                );
-                
-                // Draw edge effect
-                this.hazeLayers.edge.fillStyle(0x2a5c2a, opacity);
-                this.hazeLayers.edge.fillRect(
-                  nx * TILE_SIZE,
-                  ny * TILE_SIZE,
-                  TILE_SIZE,
-                  TILE_SIZE
-                );
+              if (distSq <= fullVisionRadius * fullVisionRadius) {
+                visibleTiles.add(`${nx},${ny}`);
+              } else {
+                // Only add to edge tiles if not already in visible area
+                const tileKey = `${nx},${ny}`;
+                if (!visibleTiles.has(tileKey)) {
+                  edgeTiles.add(tileKey);
+                }
               }
             }
           }
@@ -501,20 +456,31 @@ const py = START_GY;
       }
     });
     
-    // Draw biohazard pattern over unexplored areas
-    for (let y = 0; y < 10; y++) {
-      for (let x = 0; x < 10; x++) {
-        if (this.infectionHaze[y][x] === 0) { // Unexplored
-          this.biohazardOverlay.fillStyle(0x3a7a3a, 0.3);
-          this.biohazardOverlay.fillRect(
-            x * TILE_SIZE,
-            y * TILE_SIZE,
-            TILE_SIZE,
-            TILE_SIZE
-          );
-        }
-      }
-    }
+    // Draw edge areas first (semi-transparent)
+    this.hazeLayer.fillStyle(0x1a3a1a, 0.6);
+    edgeTiles.forEach(tile => {
+      const [x, y] = tile.split(',').map(Number);
+      this.hazeLayer.fillRect(
+        x * TILE_SIZE,
+        y * TILE_SIZE,
+        TILE_SIZE,
+        TILE_SIZE
+      );
+    });
+    
+    // Then clear fully visible areas (will be on top of edge areas)
+    visibleTiles.forEach(tile => {
+      const [x, y] = tile.split(',').map(Number);
+      this.hazeLayer.clearRect(
+        x * TILE_SIZE,
+        y * TILE_SIZE,
+        TILE_SIZE,
+        TILE_SIZE
+      );
+    });
+    
+    // Store visible tiles for reference
+    this.visibleTiles = visibleTiles;
   }
   
   // This will be called after the scene is fully created
