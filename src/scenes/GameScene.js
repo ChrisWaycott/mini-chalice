@@ -106,34 +106,49 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ---------- infection-haze (simple) ---------- */
-    console.log('Setting up infection haze...');
+    /* ========== FOG OF WAR SYSTEM ========== */
+    console.log('Initializing RTS-style fog of war...');
     
-    // Track which tiles have been revealed (10x10 grid)
-    this.revealedTiles = Array(10).fill().map(() => Array(10).fill(false));
+    // Track tile states: 0=unexplored, 1=explored, 2=visible
+    this.fogOfWar = Array(10).fill().map(() => Array(10).fill(0));
     
-    // Create the main game container
-    this.gameContainer = this.add.container(0, 0).setDepth(0);
+    // Create fog of war layers
+    this.fogLayers = {
+      // Unexplored fog (black)
+      unexplored: this.add.graphics()
+        .fillStyle(0x000000, 1)
+        .fillRect(0, 0, 640, 640)
+        .setDepth(1000),
+      
+      // Explored but not visible (darkened)
+      explored: this.add.graphics()
+        .fillStyle(0x111111, 0.8)
+        .fillRect(0, 0, 640, 640)
+        .setDepth(1001),
+      
+      // Currently visible (masked by vision)
+      visible: this.add.graphics()
+        .fillStyle(0x000000, 0)
+        .fillRect(0, 0, 640, 640)
+        .setDepth(1002)
+    };
     
-    // Create the infection haze overlay (black)
-    this.infectionHaze = this.add.graphics()
-      .fillStyle(0x000000, 1)
-      .fillRect(0, 0, 640, 640)
-      .setDepth(1000);
-    
-    // Create a mask for visible areas
+    // Create vision mask (where units can see)
     this.visionMask = this.make.graphics()
       .fillStyle(0xffffff, 1)
-      .setDepth(1001);
+      .setDepth(1003);
     
-    // Apply the mask to the infection haze
-    this.infectionHaze.mask = new Phaser.Display.Masks.GeometryMask(this, this.visionMask);
+    // Apply vision mask to the explored layer
+    this.fogLayers.explored.mask = new Phaser.Display.Masks.GeometryMask(this, this.visionMask);
     
     // Add debug border (temporary)
     this.debugBorder = this.add.graphics()
       .lineStyle(2, 0xff0000, 1)
       .strokeRect(0, 0, 640, 640)
-      .setDepth(1002);
+      .setDepth(1004);
+      
+    // Track visible tiles for the current frame
+    this.currentVisibleTiles = new Set();
     
     // Initial update
     this.updateHazeMask();
@@ -422,69 +437,100 @@ const py = START_GY;
   /* ---------- infection-haze ---------- */
   updateHazeMask() {
     if (!this.survivors || !this.visionMask) {
-      console.log('Cannot update haze: graphics not ready');
+      console.log('Fog of war: graphics not ready');
       return;
     }
     
-    // Clear the previous mask
-    this.visionMask.clear();
+    // Clear previous frame's visible tiles
+    this.currentVisibleTiles.clear();
     
-    // For debugging: Draw a visible circle to verify the mask is working
+    // Clear and prepare the vision mask
+    this.visionMask.clear();
     this.visionMask.fillStyle(0xffffff, 1);
     
-    // Draw vision circles for all living survivors
+    // Update fog state for all living survivors
     this.survivors.forEach(survivor => {
       if (survivor && survivor.alive) {
-        const gridX = Math.floor(survivor.x / TILE_SIZE);
-        const gridY = Math.floor(survivor.y / TILE_SIZE);
+        const centerX = Math.floor(survivor.x / TILE_SIZE);
+        const centerY = Math.floor(survivor.y / TILE_SIZE);
+        const visionRadius = 3; // Tiles
         
-        // Update revealed tiles in a 3x3 area around the survivor
-        const revealRadius = 3;
-        for (let y = -revealRadius; y <= revealRadius; y++) {
-          for (let x = -revealRadius; x <= revealRadius; x++) {
-            const nx = gridX + x;
-            const ny = gridY + y;
-            if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-              this.revealedTiles[ny][nx] = true;
+        // Update visibility in a circle around the survivor
+        for (let y = -visionRadius; y <= visionRadius; y++) {
+          for (let x = -visionRadius; x <= visionRadius; x++) {
+            const nx = centerX + x;
+            const ny = centerY + y;
+            
+            // Check if within vision radius (circle check)
+            if (x*x + y*y <= visionRadius * visionRadius && 
+                nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
+              
+              // Mark as explored and visible
+              this.fogOfWar[ny][nx] = 2; // 2 = visible
+              this.currentVisibleTiles.add(`${nx},${ny}`);
+              
+              // Draw vision circle (this will be cut out of the fog)
+              this.visionMask.fillCircle(
+                (nx + 0.5) * TILE_SIZE,
+                (ny + 0.5) * TILE_SIZE,
+                TILE_SIZE * 0.8 // Slightly smaller than tile to show grid
+              );
             }
           }
         }
-        
-        // Draw vision circle (this will be cut out of the black overlay)
-        this.visionMask.fillCircle(
-          survivor.x,
-          survivor.y,
-          TILE_SIZE * 2.5
-        );
       }
     });
     
-    // Debug: Log the current survivor positions
-    console.log('Updating haze mask for survivors at:', 
-      this.survivors
-        .filter(s => s?.alive)
-        .map(s => ({
-          x: Math.floor(s.x / TILE_SIZE), 
-          y: Math.floor(s.y / TILE_SIZE)
-        }))
-    );
-    
-    // Apply the mask to the infection haze
-    if (!this.infectionHaze.mask) {
-      this.infectionHaze.mask = new Phaser.Display.Masks.GeometryMask(this, this.visionMask);
+    // Update explored areas (previously visible, now out of sight)
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        const key = `${x},${y}`;
+        // If tile was visible last frame but not now, mark as explored
+        if (this.fogOfWar[y][x] === 2 && !this.currentVisibleTiles.has(key)) {
+          this.fogOfWar[y][x] = 1; // 1 = explored but not visible
+        }
+      }
     }
     
-    // Force a render update
-    this.visionMask.generateTexture('hazemask', 640, 640);
+    // Update fog layers based on current state
+    this.fogLayers.unexplored.clear();
+    this.fogLayers.explored.clear();
+    this.fogLayers.visible.clear();
+    
+    // Draw appropriate fog for each tile
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        const state = this.fogOfWar[y][x];
+        const xPos = x * TILE_SIZE;
+        const yPos = y * TILE_SIZE;
+        
+        if (state === 0) { // Unexplored
+          this.fogLayers.unexplored.fillStyle(0x000000, 1);
+          this.fogLayers.unexplored.fillRect(xPos, yPos, TILE_SIZE, TILE_SIZE);
+        } else if (state === 1) { // Explored but not visible
+          this.fogLayers.explored.fillStyle(0x111111, 0.8);
+          this.fogLayers.explored.fillRect(xPos, yPos, TILE_SIZE, TILE_SIZE);
+        }
+        // State 2 is visible, so no fog is drawn
+      }
+    }
   }
   
   // This will be called after the scene is fully created
   createPost() {
-    // Initialize the mask after everything is set up
+    // Initialize fog of war after everything is set up
     this.time.delayedCall(100, () => {
       if (this.updateHazeMask) {
         this.updateHazeMask();
       }
+    });
+    
+    // Update fog of war every 100ms for smooth updates
+    this.time.addEvent({
+      delay: 100,
+      callback: this.updateHazeMask,
+      callbackScope: this,
+      loop: true
     });
   }
 
