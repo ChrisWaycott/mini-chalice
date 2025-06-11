@@ -34,12 +34,15 @@ export default class GameScene extends Phaser.Scene {
       }
       
       // Check if hovering over a selectable survivor
-      const hoveredSurvivor = this.survivors.find(s => 
-        s.alive && 
-        s.actionPoints > 0 &&
-        Math.floor(s.x / TILE_SIZE) === tileX && 
-        Math.floor(s.y / TILE_SIZE) === tileY
-      );
+      const hoveredSurvivor = this.survivors.find(s => {
+        if (!s.alive || s.actionPoints <= 0) return false;
+        
+        // Calculate tile position based on sprite's grid position
+        const spriteTileX = s.gridX;
+        const spriteTileY = s.gridY;
+        
+        return spriteTileX === tileX && spriteTileY === tileY;
+      });
       
       // Check if hovering over a valid movement tile
       const isMovementTile = this.movementSystem?.movementRange?.some(
@@ -552,7 +555,8 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
         
         // Draw unexplored tile with edge effect
         const alpha = isEdge ? 0.5 : VISION.UNEXPLORED_OPACITY;
-        this.hazeLayer.fillStyle(0x0a1a0a, alpha); // Dark green color
+        // Use fillStyle with RGB values for more reliable color
+        this.hazeLayer.fillStyle(10, 26, 10, alpha * 255); // Dark green with alpha
         this.hazeLayer.fillRect(
           x * TILE_SIZE,
           y * TILE_SIZE,
@@ -561,7 +565,7 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
         );
         
         // Add subtle grid lines for better visibility
-        this.hazeLayer.lineStyle(1, 0x1a2a1a, 0.3);
+        this.hazeLayer.lineStyle(1, 26, 42, 26, 0.3 * 255); // Darker green grid
         this.hazeLayer.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
       }
     }
