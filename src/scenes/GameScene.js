@@ -10,6 +10,21 @@ export default class GameScene extends Phaser.Scene {
 
   preload() { /* nothing */ }
 
+  // Check if there's an undead at the given grid coordinates
+  isUndeadAt(x, y) {
+    return this.undead && this.undead.getChildren().some(u => u.gridX === x && u.gridY === y);
+  }
+
+  // Check if there's a survivor at the given grid coordinates
+  isSurvivorAt(x, y) {
+    return this.survivors.some(s => s.alive && s.gridX === x && s.gridY === y);
+  }
+
+  // Check if there's any unit (survivor or undead) at the given grid coordinates
+  isUnitAt(x, y) {
+    return this.isSurvivorAt(x, y) || this.isUndeadAt(x, y);
+  }
+
   create() {
     this.turn = 'player'; // 'player' or 'enemy'
     this.enemyMoved = false;
@@ -573,7 +588,7 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
         const alpha = isEdge ? 0.7 : VISION.UNEXPLORED_OPACITY;
         
         // Use fillStyle with hex color for better compatibility
-        this.hazeLayer.fillStyle(0x0a1a0a, alpha);
+        this.hazeLayer.fillStyle(0x207320, alpha);
         this.hazeLayer.fillRect(
           x * TILE_SIZE,
           y * TILE_SIZE,
@@ -583,46 +598,11 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
         
         // Draw edge highlights
         if (isEdge) {
-          this.hazeLayer.lineStyle(2, 0x1a3a1a, 0.8);
+          this.hazeLayer.lineStyle(2, 0x4ca64c, .9);
           
-          if (edgeDirection.top) {
-            this.hazeLayer.lineBetween(
-              x * TILE_SIZE, 
-              y * TILE_SIZE, 
-              (x + 1) * TILE_SIZE, 
-              y * TILE_SIZE
-            );
-          }
-          if (edgeDirection.right) {
-            this.hazeLayer.lineBetween(
-              (x + 1) * TILE_SIZE, 
-              y * TILE_SIZE, 
-              (x + 1) * TILE_SIZE, 
-              (y + 1) * TILE_SIZE
-            );
-          }
-          if (edgeDirection.bottom) {
-            this.hazeLayer.lineBetween(
-              x * TILE_SIZE, 
-              (y + 1) * TILE_SIZE, 
-              (x + 1) * TILE_SIZE, 
-              (y + 1) * TILE_SIZE
-            );
-          }
-          if (edgeDirection.left) {
-            this.hazeLayer.lineBetween(
-              x * TILE_SIZE, 
-              y * TILE_SIZE, 
-              x * TILE_SIZE, 
-              (y + 1) * TILE_SIZE
-            );
-          }
+          
         }
-        
-        // Add subtle grid lines for better visibility
-        this.hazeLayer.lineStyle(1, 0x1a2a1a, 0.3);
-        this.hazeLayer.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-      }
+        }
     }
     
     // Store visible tiles for reference
@@ -724,13 +704,24 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     // Optionally, play a special effect for turning
     // (skip the delayed glyph/undead spawn)
   }
+  // Track last click time to prevent double-clicks
+  lastClickTime = 0;
+  
   // Handle pointer down events
   handlePointerDown(pointer) {
-    // Only process input during player's turn
+    // Don't process input if it's not the player's turn
     if (this.currentTurn !== 'player') {
       console.log('Not player\'s turn');
       return;
     }
+    
+    // Debounce rapid clicks (less than 200ms apart)
+    const now = Date.now();
+    if (now - this.lastClickTime < 200) {
+      console.log('Ignoring rapid click');
+      return;
+    }
+    this.lastClickTime = now;
     
     // Convert pointer coordinates to tile coordinates
     const tileX = Math.floor(pointer.worldX / TILE_SIZE);
@@ -760,72 +751,73 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     
     console.log('Clicked survivor:', clickedSurvivor ? 'found' : 'not found');
     
-    // Check if clicking on a valid movement tile
-    const isMovementTile = this.movementSystem.movementRange.some(
-      tile => tile.x === tileX && tile.y === tileY
-    );
-    
-    if (clickedSurvivor) {
-      if (this.selectedSurvivor === clickedSurvivor) {
-        this.clearSelection();
-      } else {
-        this.selectSurvivor(clickedSurvivor);
-      }
-      return;
-    } else if (isMovementTile && this.selectedSurvivor?.actionPoints > 0) {
-      this.moveSelectedSurvivor(tileX, tileY);
-      return;
-    }
-    
-    // If we have a selected survivor with AP, try to move
-    if (this.selectedSurvivor?.actionPoints > 0) {
-      console.log(`Attempting to move to (${tileX}, ${tileY})`);
-      this.moveSelectedSurvivor(tileX, tileY);
-    } else {
-      console.log('No selected survivor with AP, clearing selection');
+    // If clicking on the already selected survivor, clear selection
+    if (clickedSurvivor === this.selectedSurvivor) {
+      console.log('Deselecting current survivor');
       this.clearSelection();
+      return;
     }
+    
+    // If clicking on a different survivor, select it
+    if (clickedSurvivor) {
+      console.log('Selecting new survivor');
+      this.selectSurvivor(clickedSurvivor);
+      return;
+    }
+    
+    // Check if clicking on a valid movement tile for the selected survivor
+    if (this.selectedSurvivor?.actionPoints > 0) {
+      const isMovementTile = this.movementSystem.movementRange.some(
+        tile => tile.x === tileX && tile.y === tileY
+      );
+      
+      if (isMovementTile) {
+        console.log(`Moving to (${tileX}, ${tileY})`);
+        this.moveSelectedSurvivor(tileX, tileY);
+        return;
+      } else {
+        console.log('Not a valid movement tile, clearing selection');
+        this.clearSelection();
+        return;
+      }
+    }
+    
+    // If we get here, no valid action was taken
+    console.log('No valid action, clearing selection');
+    this.clearSelection();
   }
   
   // Select a survivor and show movement range
   selectSurvivor(survivor) {
-    console.log('Selecting survivor:', survivor);
+    console.log('[SELECT] Selecting survivor at', {x: survivor.gridX, y: survivor.gridY}, 'with AP:', survivor.actionPoints);
     
     // Clear previous selection
     this.clearSelection();
     
-    // Set new selection
+    // Set the selected survivor
     this.selectedSurvivor = survivor;
-    
-    // Store original scale for pulsing effect
-    const originalScale = survivor.scale;
-    
-    // Add a pulsing effect to the selected survivor
-    this.tweens.add({
-      targets: survivor,
-      scale: { from: originalScale * 1.1, to: originalScale },
-      duration: 500,
-      yoyo: true,
-      repeat: -1
-    });
-    
-    // Orange tint for selection
-    survivor.setTint(0xFFA500);
     
     // Initialize action points if not set
     if (survivor.actionPoints === undefined) {
+      console.log('[SELECT] Initializing action points to', MOVEMENT.ACTION_POINTS);
       survivor.actionPoints = MOVEMENT.ACTION_POINTS;
+    } else {
+      console.log('[SELECT] Survivor has', survivor.actionPoints, 'action points');
     }
     
-    // Get grid position from sprite properties
+    // Highlight the selected survivor
+    survivor.setTint(0x00ff00);
+    survivor.setScale(1.1);
+    
+    // Get grid position
     const startX = survivor.gridX;
     const startY = survivor.gridY;
     
-    console.log(`Calculating movement range from (${startX}, ${startY}) with ${survivor.actionPoints} AP`);
+    console.log(`[SELECT] Calculating movement range from (${startX}, ${startY}) with ${survivor.actionPoints} AP`);
     
     // Calculate movement range based on action points
-    const movementRange = survivor.actionPoints * MOVEMENT.BASE_SPEED;
-    console.log('Movement range:', movementRange, 'tiles');
+    const maxAP = survivor.actionPoints;
+    console.log(`[SELECT] Movement range calculation: ${survivor.actionPoints} AP`);
     
     // Clear any existing range display
     if (!this.movementSystem) {
@@ -833,30 +825,49 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       return;
     }
     
-    console.log('Hiding previous range...');
+    console.log('[SELECT] Hiding previous range...');
     this.movementSystem.hideRange();
     
-    // Update obstacles in the movement system
+    // Update obstacles in the movement system (walls and other survivors block movement)
     const obstacles = [];
+    
+    // Add other survivors as obstacles
     this.survivors.forEach(s => {
       if (s !== survivor && s.alive) {
         obstacles.push({ x: s.gridX, y: s.gridY });
       }
     });
-    console.log('Setting obstacles:', obstacles);
+    
+    // Add walls as obstacles
+    for (let y = 0; y < this.grid.length; y++) {
+      for (let x = 0; x < this.grid[y].length; x++) {
+        if (this.grid[y][x] && !this.grid[y][x].walkable) {
+          obstacles.push({ x, y });
+        }
+      }
+    }
+    
+    console.log('[SELECT] Setting obstacles:', obstacles);
     this.movementSystem.setObstacles(obstacles);
     
     try {
-      console.log('Calculating movement range...');
-      const range = this.movementSystem.calculateRange(survivor, movementRange);
-      console.log('Movement range calculated, showing range...');
-      this.movementSystem.showRange(range); // Pass the range explicitly
+      console.log('[SELECT] Calculating movement range with max AP:', maxAP);
+      const range = this.movementSystem.calculateRange(survivor, maxAP);
+      
+      // Add unit reference to each tile in range
+      const rangeWithUnit = range.map(tile => ({
+        ...tile,
+        unit: survivor // Add reference to the unit for each tile
+      }));
+      
+      console.log('[SELECT] Movement range calculated, showing range...');
+      this.movementSystem.showRange(rangeWithUnit);
       
       // Log selection for debugging
-      console.log(`Selected survivor at (${startX}, ${startY}) with ${survivor.actionPoints} AP, movement range: ${movementRange} tiles, found ${range?.length || 0} reachable tiles`);
-      console.log('Movement range tiles:', range);
+      console.log(`[SELECT] Selected survivor at (${startX},${startY}) with ${survivor.actionPoints} AP, found ${range?.length || 0} reachable tiles`);
+      console.log('[SELECT] Movement range tiles:', rangeWithUnit);
     } catch (error) {
-      console.error('Error calculating movement range:', error);
+      console.error('[SELECT] Error calculating movement range:', error);
     }
     
     // Force redraw the haze to ensure it's on top
@@ -871,39 +882,40 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     }
     
     const survivor = this.selectedSurvivor;
+    console.log('[MOVE] Starting move for survivor at', {x: survivor.gridX, y: survivor.gridY}, 'with AP:', survivor.actionPoints);
     
     // Get path to target
-    const path = this.movementSystem.getPathTo(tileX, tileY);
+    const pathInfo = this.movementSystem.getPathTo(tileX, tileY);
+    console.log('[MOVE] Path info:', pathInfo);
     
     // If no valid path, do nothing
-    if (!path || path.length === 0) {
-      console.log(`No valid path to (${tileX}, ${tileY})`);
+    if (!pathInfo || !pathInfo.path || pathInfo.path.length === 0) {
+      console.log(`[MOVE] No valid path to (${tileX}, ${tileY})`);
       return;
     }
     
+    const path = pathInfo.path;
     const target = path[path.length - 1];
+    const totalAPCost = pathInfo.apCost;
     
-    // Calculate movement cost (diagonal costs more)
-    const isDiagonal = path.length > 1 && 
-                      (Math.abs(path[0].x - path[1].x) === 1 && 
-                       Math.abs(path[0].y - path[1].y) === 1);
-    
-    const moveCost = isDiagonal ? Math.ceil(MOVEMENT.DIAGONAL_COST) : 1;
+    console.log(`[MOVE] Moving to (${tileX}, ${tileY}) with AP cost: ${totalAPCost}, survivor AP: ${survivor.actionPoints}`);
     
     // Check if we have enough action points
-    if (survivor.actionPoints < moveCost) {
-      console.log(`Not enough action points (needed: ${moveCost}, has: ${survivor.actionPoints})`);
+    if (survivor.actionPoints < totalAPCost) {
+      console.log(`[MOVE] Not enough action points (needed: ${totalAPCost}, has: ${survivor.actionPoints})`);
       return;
     }
     
-    console.log(`Moving survivor to (${target.x}, ${target.y}), cost: ${moveCost} AP`);
-    
     // Update survivor's grid position
+    const oldX = survivor.gridX;
+    const oldY = survivor.gridY;
     survivor.gridX = target.x;
     survivor.gridY = target.y;
     
-    // Deduct action points
-    survivor.actionPoints -= moveCost;
+    // Deduct action points (using the rounded total AP cost)
+    const oldAP = survivor.actionPoints;
+    survivor.actionPoints -= totalAPCost;
+    console.log(`[MOVE] Moved from (${oldX},${oldY}) to (${survivor.gridX},${survivor.gridY}), AP: ${oldAP} -> ${survivor.actionPoints} (used ${totalAPCost} AP)`);
     
     // Clear any existing movement tweens
     this.tweens.killTweensOf([survivor, survivor.shadow]);
@@ -913,14 +925,13 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       survivor.play(survivor.walkKey);
     }
     
-    // Animate movement
-    this.tweens.add({
-      targets: [survivor, survivor.shadow],
-      x: target.x * TILE_SIZE + TILE_SIZE / 2,
-      y: (target.y * TILE_SIZE) + TILE_SIZE, // Adjust for origin point
-      duration: 300,
-      ease: 'Power1',
-      onComplete: () => {
+    // Create a chain of tweens for each step in the path
+    const movementPath = pathInfo.path || [];
+    let currentTween = null;
+    
+    // Function to move to the next point in the path
+    const moveNext = (index) => {
+      if (index >= movementPath.length) {
         // Update fog of war after movement
         this.updateHazeMask();
         
@@ -929,36 +940,41 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
           survivor.play(survivor.idleKey);
         }
         
-        // If no action points left, clear selection
-        if (survivor.actionPoints <= 0) {
-          console.log('No action points remaining, clearing selection');
+        // If no action points left or movement was diagonal (costs 2 AP), clear selection
+        if (survivor.actionPoints <= 0 || pathInfo.isDiagonal) {
+          console.log(`Movement complete. AP remaining: ${survivor.actionPoints}, movement cost: ${totalAPCost} AP`);
           this.clearSelection();
         } else {
-          // Recalculate movement range
+          // Recalculate movement range with remaining AP
           console.log(`Recalculating movement range with ${survivor.actionPoints} AP`);
-          this.movementSystem.calculateRange(survivor, survivor.actionPoints * MOVEMENT.BASE_SPEED);
-          this.movementSystem.showRange();
+          const range = this.movementSystem.calculateRange(survivor, survivor.actionPoints);
+          this.movementSystem.showRange(range);
         }
+        return;
       }
-    });
-  }
-  
-  // Clear current selection and hide movement range
-  clearSelection() {
-    if (this.selectedSurvivor) {
-      // Clear any active tweens on the survivor
-      this.tweens.killTweensOf(this.selectedSurvivor);
-      // Reset scale to original size
-      this.selectedSurvivor.setScale(1);
-      // Clear tint
-      this.selectedSurvivor.clearTint();
-      this.selectedSurvivor = null;
-      console.log('Cleared selection');
-    }
-    // Hide movement range
-    this.movementSystem.hideRange();
-    // Force redraw the haze to ensure it's updated
-    this.updateHazeMask();
+      
+      const point = movementPath[index];
+      const targetX = point.x * TILE_SIZE + TILE_SIZE / 2;
+      const targetY = (point.y * TILE_SIZE) + TILE_SIZE; // Adjust for origin point
+      
+      // Calculate duration based on whether it's a diagonal move
+      const duration = point.isDiagonal ? 450 : 300; // Diagonal takes 1.5x longer
+      
+      currentTween = this.tweens.add({
+        targets: [survivor, survivor.shadow],
+        x: targetX,
+        y: targetY,
+        duration: duration,
+        ease: 'Linear',
+        onComplete: () => moveNext(index + 1)
+      });
+    };
+    
+    // Start the movement chain
+    moveNext(0);
+    
+    // Store the current tween so we can cancel it if needed
+    survivor.currentTween = currentTween;
   }
   
   // End current turn and start enemy turn
@@ -979,13 +995,52 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
   
   // Enemy turn logic
   startEnemyTurn() {
-    // TODO: Implement enemy AI
-    console.log('Enemy turn started');
+    console.log('[TURN] Enemy turn started');
+    
+    // First, reset action points for all survivors
+    this.resetActionPoints();
     
     // For now, just end the enemy turn after a delay
     this.time.delayedCall(1000, () => {
+      console.log('[TURN] Enemy turn ended, starting player turn');
       this.currentTurn = 'player';
-      console.log('Player turn started');
+      
+      // Reset action points for all survivors at the start of player's turn
+      this.resetActionPoints();
+    });
+  }
+  
+  // Clear current selection and hide movement range
+  clearSelection() {
+    if (this.selectedSurvivor) {
+      // Clear any active tweens on the survivor
+      this.tweens.killTweensOf(this.selectedSurvivor);
+      // Reset scale to original size
+      this.selectedSurvivor.setScale(1);
+      // Clear tint
+      this.selectedSurvivor.clearTint();
+      this.selectedSurvivor = null;
+      console.log('Cleared selection');
+    }
+    
+    // Hide movement range
+    if (this.movementSystem) {
+      this.movementSystem.hideRange();
+    }
+    
+    // Force redraw the haze to ensure it's updated
+    this.updateHazeMask();
+  }
+  
+  // Reset AP for all survivors at the start of the player's turn
+  resetActionPoints() {
+    console.log('[TURN] Resetting action points for all survivors');
+    this.survivors.forEach(s => {
+      if (s.alive) {
+        const oldAP = s.actionPoints;
+        s.actionPoints = MOVEMENT.ACTION_POINTS;
+        console.log(`[TURN] Reset AP for survivor at (${s.gridX},${s.gridY}): ${oldAP} -> ${s.actionPoints}`);
+      }
     });
   }
   
