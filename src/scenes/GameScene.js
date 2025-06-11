@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { TILE_SIZE, MOVE_TWEEN_MS, TILE, VISION } from '../constants.js';
+import { TILE_SIZE, MOVE_TWEEN_MS, TILE, VISION, MOVEMENT } from '../constants.js';
+import MovementSystem from '../systems/MovementSystem.js';
 import { scaleToTile } from '../utils/scaleToTile.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -47,18 +48,37 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     }
 
     /* -------- hero start tile -------- */
-const START_GX = 1;          // grid X
-const START_GY = 1;          // grid Y
-const px = START_GX;
-const py = START_GY;
+    const START_GX = 1;          // grid X
+    const START_GY = 1;          // grid Y
+    const px = START_GX;
+    const py = START_GY;
 
+    // Initialize movement system
+    this.movementSystem = new MovementSystem(this);
+    this.selectedSurvivor = null;
+    this.currentTurn = 'player'; // 'player' or 'enemy'
     this.survivors = [];
+    
+    // Set up input handling
+    this.input.on('pointerdown', this.handlePointerDown, this);
+    
+    // Add end turn button
+    this.endTurnButton = this.add.text(
+      this.cameras.main.width - 150,
+      20,
+      'End Turn',
+      { font: '20px Arial', color: '#ffffff', backgroundColor: '#333333', padding: { x: 10, y: 5 }}
+    )
+    .setInteractive()
+    .on('pointerdown', this.endPlayerTurn, this);
+    
     // Raider_1
     const p1 = this.add
       .sprite(1 * TILE_SIZE + TILE_SIZE / 2, 1 * TILE_SIZE + TILE_SIZE, 'raider-idle')
       .setOrigin(0.5, 1)
       .setDepth(10)
-      .play('raider-idle');
+      .play('raider-idle')
+      .setInteractive();
 
     scaleToTile(p1);
     p1.setScale(p1.scaleX * 1.6);
@@ -66,6 +86,7 @@ const py = START_GY;
     p1.gridY = 1;
     p1.hp = 5;
     p1.maxHp = 5;
+    p1.actionPoints = MOVEMENT.ACTION_POINTS; // Initialize action points
     p1.hpText = this.add.text(
       p1.x,
       p1.y - 54,
@@ -86,7 +107,8 @@ const py = START_GY;
       .sprite(3 * TILE_SIZE + TILE_SIZE / 2, 1 * TILE_SIZE + TILE_SIZE, 'raider2-idle')
       .setOrigin(0.5, 1)
       .setDepth(10)
-      .play('raider2-idle');
+      .play('raider2-idle')
+      .setInteractive();
 
     scaleToTile(p2);
     p2.setScale(p2.scaleX * 1.6);
@@ -94,6 +116,7 @@ const py = START_GY;
     p2.gridY = 1;
     p2.hp = 5;
     p2.maxHp = 5;
+    p2.actionPoints = MOVEMENT.ACTION_POINTS; // Initialize action points
     p2.hpText = this.add.text(
       p2.x,
       p2.y - 54,
@@ -105,7 +128,7 @@ const py = START_GY;
     p2.attackKey = 'raider2-attack';
     p2.idleKey = 'raider2-idle';
     p2.alive = true;
-    p2.visionRange = VISION.INCREASED_RANGE; // Enhanced vision range
+    p2.visionRange = VISION.INCREASED_RANGE; // Increased vision range
     p2.shadow = this.add.ellipse(p2.x, p2.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5).setDepth(9);
     this.survivors.push(p2);
     // Set active survivor
@@ -596,6 +619,145 @@ const py = START_GY;
     // Optionally, play a special effect for turning
     // (skip the delayed glyph/undead spawn)
   }
+  // Handle pointer down events
+  handlePointerDown(pointer) {
+    if (this.currentTurn !== 'player') return;
+    
+    const tileX = Math.floor(pointer.worldX / TILE_SIZE);
+    const tileY = Math.floor(pointer.worldY / TILE_SIZE);
+    
+    // Check if clicking on a survivor
+    const clickedSurvivor = this.survivors.find(s => 
+      s.alive && 
+      s.actionPoints > 0 &&
+      Math.floor(s.x / TILE_SIZE) === tileX && 
+      Math.floor(s.y / TILE_SIZE) === tileY
+    );
+    
+    if (clickedSurvivor) {
+      if (this.selectedSurvivor === clickedSurvivor) {
+        // Clicked the same survivor - deselect
+        this.clearSelection();
+      } else {
+        this.selectSurvivor(clickedSurvivor);
+      }
+      return;
+    }
+    
+    // If we have a selected survivor with AP, try to move
+    if (this.selectedSurvivor?.actionPoints > 0) {
+      this.moveSelectedSurvivor(tileX, tileY);
+    } else {
+      this.clearSelection();
+    }
+  }
+  
+  // Select a survivor and show movement range
+  selectSurvivor(survivor) {
+    // Clear previous selection
+    this.clearSelection();
+    
+    // Set new selection
+    this.selectedSurvivor = survivor;
+    survivor.setTint(0xFFA500); // Orange tint for selection
+    
+    // Initialize action points if not set
+    if (survivor.actionPoints === undefined) {
+      survivor.actionPoints = MOVEMENT.ACTION_POINTS;
+    }
+    
+    // Calculate and show movement range
+    this.movementSystem.calculateRange(survivor, survivor.actionPoints * MOVEMENT.BASE_SPEED);
+    this.movementSystem.showRange();
+  }
+  
+  // Move selected survivor to target tile
+  moveSelectedSurvivor(tileX, tileY) {
+    if (!this.selectedSurvivor) return;
+    
+    const path = this.movementSystem.getPathTo(tileX, tileY);
+    if (!path || path.length === 0) return;
+    
+    const survivor = this.selectedSurvivor;
+    const target = path[path.length - 1];
+    
+    // Calculate movement cost
+    const isDiagonal = path.length > 1 && 
+      (Math.abs(path[0].x - path[1].x) === 1 && Math.abs(path[0].y - path[1].y) === 1);
+    const moveCost = isDiagonal ? Math.ceil(MOVEMENT.DIAGONAL_COST) : 1;
+    
+    if (survivor.actionPoints < moveCost) {
+      return; // Not enough AP
+    }
+    
+    // Update survivor state
+    survivor.actionPoints -= moveCost;
+    survivor.gridX = target.x;
+    survivor.gridY = target.y;
+    
+    // Animate movement
+    this.tweens.add({
+      targets: [survivor, survivor.shadow],
+      x: target.x * TILE_SIZE + TILE_SIZE / 2,
+      y: (target.y * TILE_SIZE) + TILE_SIZE,
+      duration: 300,
+      onComplete: () => {
+        // Update fog of war after moving
+        this.updateHazeMask();
+        
+        // If no more AP, clear selection
+        if (survivor.actionPoints <= 0) {
+          this.clearSelection();
+        }
+      }
+    });
+    
+    // Update movement range for remaining AP
+    if (survivor.actionPoints > 0) {
+      this.movementSystem.calculateRange(survivor, survivor.actionPoints * MOVEMENT.BASE_SPEED);
+      this.movementSystem.showRange();
+    } else {
+      this.movementSystem.hideRange();
+    }
+  }
+  
+  // Clear current selection and hide movement range
+  clearSelection() {
+    if (this.selectedSurvivor) {
+      this.selectedSurvivor.clearTint();
+      this.selectedSurvivor = null;
+    }
+    this.movementSystem.hideRange();
+  }
+  
+  // End current turn and start enemy turn
+  endPlayerTurn() {
+    this.currentTurn = 'enemy';
+    this.clearSelection();
+    
+    // Reset AP for all survivors
+    this.survivors.forEach(s => {
+      if (s.alive) {
+        s.actionPoints = MOVEMENT.ACTION_POINTS;
+      }
+    });
+    
+    // Start enemy turn after a delay
+    this.time.delayedCall(1000, () => this.startEnemyTurn());
+  }
+  
+  // Enemy turn logic
+  startEnemyTurn() {
+    // TODO: Implement enemy AI
+    console.log('Enemy turn started');
+    
+    // For now, just end the enemy turn after a delay
+    this.time.delayedCall(1000, () => {
+      this.currentTurn = 'player';
+      console.log('Player turn started');
+    });
+  }
+  
   // For compatibility
   killHero() {
     this.killSurvivor(this.player);

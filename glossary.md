@@ -180,4 +180,46 @@ Research (Unexpected Strategic Occurrences)
 
 Aging/Retirement (Heroes age, retire, and die.)
 : Replacement: Aging/Retirement
-: (Survivors age, may become less effective, or retire from active duty.))
+: (Survivors age, may become less effective, or retire from active duty.)
+
+## Movement Mechanics
+
+### Action Points
+- Each unit starts with **2 Action Points (AP)** per turn
+- **1 AP Movement**: Move to an orange-highlighted tile (short distance)
+- **2 AP Movement**: Move to a white-highlighted tile (longer distance)
+- Most actions (attacks, abilities) consume all remaining AP
+- AP can be split across multiple units before being spent
+
+### Speed
+- Determines movement range per AP
+- Base speed is typically **4 tiles per AP**
+- Can be modified by traits, equipment, or age
+- Maximum movement per turn = Speed × 2 (with both AP spent on movement)
+
+### Movement Rules
+1. **Tile Costs**:
+   - Orthogonal movement: 1 movement point per tile
+   - Diagonal movement: 1.5 movement points (requires clear path)
+   - Cannot move through obstacles or other units
+
+2. **Movement Restrictions**:
+   - Cannot move through enemy units
+   - Can move between friendly units only diagonally
+   - Diagonal movement requires all tiles in the path to be unobstructed
+
+3. **Special Cases**:
+   - Moving around an enemy requires full movement (4 points: left, forward, forward, right)
+   - Some abilities may modify movement rules (e.g., Charge, Free Throw)
+
+### Strategic Considerations
+- **Scouts**: High-movement units excel at exploring and spotting
+- **Positioning**: Moving to high ground or cover can provide combat advantages
+- **AP Management**: Leaving 1 AP for reaction moves can be tactically valuable
+- **Obstacle Navigation**: Plan routes carefully around obstacles and enemies
+
+### Example Movement
+- **Speed 4 Unit**:
+  - 1 AP: Move up to 4 tiles orthogonally or ~2.6 tiles diagonally
+  - 2 AP: Move up to 8 tiles orthogonally or ~5.3 tiles diagonally
+  - 1 AP Move + 1 AP Attack: Move 4 tiles and perform an action
