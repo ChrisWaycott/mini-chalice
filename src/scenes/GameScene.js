@@ -106,15 +106,29 @@ const py = START_GY;
     this.player = this.survivors[this.activeSurvivorIndex]; // for compatibility
 
 
-    /* ========== SIMPLE INFECTION HAZE ========== */
-    console.log('Initializing simple Infection Haze system...', new Date().toISOString());
+    /* ========== INFECTION HAZE ========== */
+    console.log('Initializing Infection Haze system...', new Date().toISOString());
     
     // Track tile states: 0=unexplored, 1=explored (fully visible)
     this.infectionHaze = Array(10).fill().map(() => Array(10).fill(0));
     
-    // Create a single graphics layer for the haze
+    // Create graphics for different layers
     this.hazeLayer = this.add.graphics()
+      .fillStyle(0x1a3a1a, 0.9)
+      .fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE)
       .setDepth(1000);
+    
+    // Create a mask for visible areas
+    this.visionMask = this.make.graphics();
+    this.visionMask.fillStyle(0xffffff);
+    
+    // Create a container to apply the mask
+    this.hazeContainer = this.add.container(0, 0)
+      .setDepth(1000)
+      .setMask(new Phaser.Display.Masks.GeometryMask(this, this.visionMask));
+    
+    // Add the haze layer to the masked container
+    this.hazeContainer.add(this.hazeLayer);
     
     // Store visible tiles for reference
     this.visibleTiles = new Set();
@@ -122,15 +136,10 @@ const py = START_GY;
     // Initial update
     this.updateHazeMask();
     
-    // Update haze periodically for smooth transitions
-    this.time.addEvent({
-      delay: 100,
-      callback: this.updateHazeMask,
-      callbackScope: this,
-      loop: true
-    });
+    // Update haze on movement
+    this.events.on('update', this.updateHazeMask, this);
     
-    console.log('Simple infection haze ready');
+    console.log('Infection Haze ready');
 
     /* ---------- input ---------- */
     this.keys = this.input.keyboard.addKeys(
@@ -406,78 +415,56 @@ const py = START_GY;
 
   /* ---------- infection-haze ---------- */
   updateHazeMask() {
-    if (!this.survivors || !this.hazeLayer) {
-      console.log('Infection Haze: graphics not ready');
+    if (!this.survivors || !this.hazeLayer || !this.visionMask) {
       return;
     }
     
-    // Clear and begin new drawing
-    this.hazeLayer.clear();
+    // Clear previous mask
+    this.visionMask.clear();
+    this.visionMask.fillStyle(0x000000, 0.01); // Almost transparent black
+    this.visionMask.fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE);
     
-    // Draw base haze over everything
-    this.hazeLayer.fillStyle(0x1a3a1a, 0.9);
-    this.hazeLayer.fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE);
+    // Draw visible areas as white (will be cut out by the mask)
+    this.visionMask.fillStyle(0xffffff, 1);
     
-    // Track visible and edge tiles
+    // Track visible tiles for game logic
     const visibleTiles = new Set();
-    const edgeTiles = new Set();
     
-    // First pass: identify all visible and edge tiles
+    // Draw vision circles for all living survivors
     this.survivors.forEach(survivor => {
       if (survivor && survivor.alive) {
-        const centerX = Math.floor(survivor.x / TILE_SIZE);
-        const centerY = Math.floor(survivor.y / TILE_SIZE);
-        const visionRadius = 3; // Tiles
-        const fullVisionRadius = 2; // Tiles for full visibility
+        const centerX = survivor.x;
+        const centerY = survivor.y;
+        const visionRadius = 3 * TILE_SIZE;
+        const fullVisionRadius = 2 * TILE_SIZE;
         
-        for (let y = -visionRadius; y <= visionRadius; y++) {
-          for (let x = -visionRadius; x <= visionRadius; x++) {
-            const nx = centerX + x;
-            const ny = centerY + y;
+        // Draw outer edge (semi-transparent)
+        this.visionMask.fillStyle(0xffffff, 0.4);
+        this.visionMask.fillCircle(centerX, centerY, visionRadius);
+        
+        // Draw inner circle (fully visible)
+        this.visionMask.fillStyle(0xffffff, 1);
+        this.visionMask.fillCircle(centerX, centerY, fullVisionRadius);
+        
+        // Update visible tiles for game logic
+        const centerTileX = Math.floor(centerX / TILE_SIZE);
+        const centerTileY = Math.floor(centerY / TILE_SIZE);
+        
+        for (let y = -3; y <= 3; y++) {
+          for (let x = -3; x <= 3; x++) {
+            const nx = centerTileX + x;
+            const ny = centerTileY + y;
             const distSq = x * x + y * y;
             
-            if (distSq <= visionRadius * visionRadius && 
-                nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-              
+            if (distSq <= 9 && nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
               this.infectionHaze[ny][nx] = 1;
-              
-              if (distSq <= fullVisionRadius * fullVisionRadius) {
+              if (distSq <= 4) { // Within full vision radius
                 visibleTiles.add(`${nx},${ny}`);
-              } else {
-                // Only add to edge tiles if not already in visible area
-                const tileKey = `${nx},${ny}`;
-                if (!visibleTiles.has(tileKey)) {
-                  edgeTiles.add(tileKey);
-                }
               }
             }
           }
         }
       }
-    });
-    
-    // Draw edge areas (semi-transparent)
-    this.hazeLayer.fillStyle(0x1a3a1a, 0.6);
-    edgeTiles.forEach(tile => {
-      const [x, y] = tile.split(',').map(Number);
-      this.hazeLayer.fillRect(
-        x * TILE_SIZE,
-        y * TILE_SIZE,
-        TILE_SIZE,
-        TILE_SIZE
-      );
-    });
-    
-    // Draw visible areas (clear by drawing a transparent rectangle)
-    this.hazeLayer.fillStyle(0x000000, 0);
-    visibleTiles.forEach(tile => {
-      const [x, y] = tile.split(',').map(Number);
-      this.hazeLayer.fillRect(
-        x * TILE_SIZE,
-        y * TILE_SIZE,
-        TILE_SIZE,
-        TILE_SIZE
-      );
     });
     
     // Store visible tiles for reference
