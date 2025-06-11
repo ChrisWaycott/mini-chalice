@@ -320,9 +320,17 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
               this.moveSprite(u, mx, my);
             }
           }
-        this.playerMovesLeft = 5;
-        this.enemyMoved = false;
-      }
+        }
+      });
+      this.enemyMoved = true;
+    }
+    
+    // Wait for all undead to finish moving before returning to player turn
+    const anyMoving = this.undead.getChildren().some(u => u.moving);
+    if (!anyMoving && this.enemyMoved) {
+      this.turn = 'player';
+      this.playerMovesLeft = 5;
+      this.enemyMoved = false;
     }
   }
 
