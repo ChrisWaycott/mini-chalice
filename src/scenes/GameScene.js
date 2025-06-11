@@ -49,10 +49,14 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     this.selectedSurvivor = null;
     this.currentTurn = 'player'; // 'player' or 'enemy'
     this.survivors = [];
+    this.visibleTiles = new Set(); // Track visible tiles for game logic
     
     // Set up input handling - bind the method to maintain 'this' context
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.input.on('pointerdown', this.handlePointerDown);
+    
+    // Enable input on the entire game canvas
+    this.input.setDefaultCursor('pointer');
     
     // Add end turn button
     this.endTurnButton = this.add.text(
@@ -70,7 +74,12 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       .setOrigin(0.5, 1)
       .setDepth(10)
       .play('raider-idle')
-      .setInteractive();
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', (pointer) => {
+        if (this.currentTurn === 'player') {
+          this.handlePointerDown(pointer);
+        }
+      });
 
     scaleToTile(p1);
     p1.setScale(p1.scaleX * 1.6);
@@ -100,7 +109,12 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       .setOrigin(0.5, 1)
       .setDepth(10)
       .play('raider2-idle')
-      .setInteractive();
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', (pointer) => {
+        if (this.currentTurn === 'player') {
+          this.handlePointerDown(pointer);
+        }
+      });
 
     scaleToTile(p2);
     p2.setScale(p2.scaleX * 1.6);
@@ -135,10 +149,20 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     this.infectionHaze = Array(10).fill().map(() => Array(10).fill(0));
     
     // Create a single graphics object for the fog of war
+    // Create the haze layer with proper depth (above tiles, below UI)
     this.hazeLayer = this.add.graphics()
       .fillStyle(0x1a3a1a, 1)
       .fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE)
-      .setDepth(1000);
+      .setDepth(1000); // Set a high depth to ensure it's above the tiles but below UI elements
+    
+    // Initialize infectionHaze array (0 = unexplored, 1 = explored, 2 = visible)
+    this.infectionHaze = [];
+    for (let y = 0; y < 10; y++) {
+      this.infectionHaze[y] = [];
+      for (let x = 0; x < 10; x++) {
+        this.infectionHaze[y][x] = 0; // Start with all tiles unexplored
+      }
+    }
     
     // Initialize explored areas around starting survivors
     this.survivors.forEach(survivor => {
@@ -423,7 +447,7 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
 
   /* ---------- infection-haze ---------- */
   updateHazeMask() {
-    if (!this.survivors || !this.hazeLayer) {
+    if (!this.survivors || !this.hazeLayer || !this.infectionHaze) {
       return;
     }
     
@@ -509,6 +533,21 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     // Ensure the infection haze is properly initialized
     this.time.delayedCall(100, () => {
       if (this.updateHazeMask) {
+        // Mark starting area as explored
+        const startX = 0;
+        const startY = 0;
+        const startRadius = 3;
+        
+        for (let y = -startRadius; y <= startRadius; y++) {
+          for (let x = -startRadius; x <= startRadius; x++) {
+            const nx = 1 + x; // Center around first survivor
+            const ny = 1 + y;
+            if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
+              this.infectionHaze[ny][nx] = 2; // Mark as visible
+            }
+          }
+        }
+        
         this.updateHazeMask();
       }
     });
@@ -586,24 +625,50 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
   }
   // Handle pointer down events
   handlePointerDown(pointer) {
-    if (this.currentTurn !== 'player') return;
+    // Only process input during player's turn
+    if (this.currentTurn !== 'player') {
+      console.log('Not player\'s turn');
+      return;
+    }
     
+    // Convert pointer coordinates to tile coordinates
     const tileX = Math.floor(pointer.worldX / TILE_SIZE);
     const tileY = Math.floor(pointer.worldY / TILE_SIZE);
     
+    // Debug log
+    console.log(`Click at (${tileX}, ${tileY})`);
+    
+    // Check if the click is within bounds
+    if (tileX < 0 || tileX >= 10 || tileY < 0 || tileY >= 10) {
+      console.log('Click out of bounds, clearing selection');
+      this.clearSelection();
+      return;
+    }
+    
     // Check if clicking on a survivor
-    const clickedSurvivor = this.survivors.find(s => 
-      s.alive && 
-      s.actionPoints > 0 &&
-      Math.floor(s.x / TILE_SIZE) === tileX && 
-      Math.floor(s.y / TILE_SIZE) === tileY
-    );
+    const clickedSurvivor = this.survivors.find(s => {
+      if (!s.alive) return false;
+      
+      const survivorTileX = Math.floor(s.x / TILE_SIZE);
+      const survivorTileY = Math.floor((s.y - TILE_SIZE/2) / TILE_SIZE); // Adjust for origin point
+      
+      return (
+        s.actionPoints > 0 &&
+        survivorTileX === tileX && 
+        survivorTileY === tileY
+      );
+    });
     
     if (clickedSurvivor) {
+      console.log('Clicked on survivor:', clickedSurvivor);
+      
       if (this.selectedSurvivor === clickedSurvivor) {
         // Clicked the same survivor - deselect
+        console.log('Deselecting survivor');
         this.clearSelection();
       } else {
+        // Select the clicked survivor
+        console.log('Selecting new survivor');
         this.selectSurvivor(clickedSurvivor);
       }
       return;
@@ -611,8 +676,10 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     
     // If we have a selected survivor with AP, try to move
     if (this.selectedSurvivor?.actionPoints > 0) {
+      console.log(`Attempting to move to (${tileX}, ${tileY})`);
       this.moveSelectedSurvivor(tileX, tileY);
     } else {
+      console.log('No selected survivor with AP, clearing selection');
       this.clearSelection();
     }
   }
@@ -624,7 +691,18 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     
     // Set new selection
     this.selectedSurvivor = survivor;
-    survivor.setTint(0xFFA500); // Orange tint for selection
+    
+    // Add a pulsing effect to the selected survivor
+    this.tweens.add({
+      targets: survivor,
+      scale: { from: survivor.scale * 1.1, to: survivor.scale },
+      duration: 500,
+      yoyo: true,
+      repeat: -1
+    });
+    
+    // Orange tint for selection
+    survivor.setTint(0xFFA500);
     
     // Initialize action points if not set
     if (survivor.actionPoints === undefined) {
@@ -632,58 +710,98 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     }
     
     // Calculate and show movement range
-    this.movementSystem.calculateRange(survivor, survivor.actionPoints * MOVEMENT.BASE_SPEED);
+    const startX = Math.floor(survivor.x / TILE_SIZE);
+    const startY = Math.floor((survivor.y - TILE_SIZE/2) / TILE_SIZE);
+    
+    console.log(`Calculating movement range from (${startX}, ${startY}) with ${survivor.actionPoints} AP`);
+    
+    // Calculate movement range based on action points
+    const movementRange = survivor.actionPoints * MOVEMENT.BASE_SPEED;
+    this.movementSystem.calculateRange(survivor, movementRange);
     this.movementSystem.showRange();
+    
+    // Log selection for debugging
+    console.log(`Selected survivor at (${startX}, ${startY}) with ${survivor.actionPoints} AP, movement range: ${movementRange} tiles`);
   }
   
   // Move selected survivor to target tile
   moveSelectedSurvivor(tileX, tileY) {
-    if (!this.selectedSurvivor) return;
-    
-    const path = this.movementSystem.getPathTo(tileX, tileY);
-    if (!path || path.length === 0) return;
-    
-    const survivor = this.selectedSurvivor;
-    const target = path[path.length - 1];
-    
-    // Calculate movement cost
-    const isDiagonal = path.length > 1 && 
-      (Math.abs(path[0].x - path[1].x) === 1 && Math.abs(path[0].y - path[1].y) === 1);
-    const moveCost = isDiagonal ? Math.ceil(MOVEMENT.DIAGONAL_COST) : 1;
-    
-    if (survivor.actionPoints < moveCost) {
-      return; // Not enough AP
+    if (!this.selectedSurvivor) {
+      console.log('No survivor selected');
+      return;
     }
     
-    // Update survivor state
-    survivor.actionPoints -= moveCost;
+    const survivor = this.selectedSurvivor;
+    
+    // Get path to target
+    const path = this.movementSystem.getPathTo(tileX, tileY);
+    
+    // If no valid path, do nothing
+    if (!path || path.length === 0) {
+      console.log(`No valid path to (${tileX}, ${tileY})`);
+      return;
+    }
+    
+    const target = path[path.length - 1];
+    
+    // Calculate movement cost (diagonal costs more)
+    const isDiagonal = path.length > 1 && 
+                      (Math.abs(path[0].x - path[1].x) === 1 && 
+                       Math.abs(path[0].y - path[1].y) === 1);
+    
+    const moveCost = isDiagonal ? Math.ceil(MOVEMENT.DIAGONAL_COST) : 1;
+    
+    // Check if we have enough action points
+    if (survivor.actionPoints < moveCost) {
+      console.log(`Not enough action points (needed: ${moveCost}, has: ${survivor.actionPoints})`);
+      return;
+    }
+    
+    console.log(`Moving survivor to (${target.x}, ${target.y}), cost: ${moveCost} AP`);
+    
+    // Update survivor's grid position
     survivor.gridX = target.x;
     survivor.gridY = target.y;
+    
+    // Deduct action points
+    survivor.actionPoints -= moveCost;
+    
+    // Clear any existing movement tweens
+    this.tweens.killTweensOf([survivor, survivor.shadow]);
+    
+    // Play walk animation
+    if (survivor.play) {
+      survivor.play(survivor.walkKey);
+    }
     
     // Animate movement
     this.tweens.add({
       targets: [survivor, survivor.shadow],
       x: target.x * TILE_SIZE + TILE_SIZE / 2,
-      y: (target.y * TILE_SIZE) + TILE_SIZE,
+      y: (target.y * TILE_SIZE) + TILE_SIZE, // Adjust for origin point
       duration: 300,
+      ease: 'Power1',
       onComplete: () => {
-        // Update fog of war after moving
+        // Update fog of war after movement
         this.updateHazeMask();
         
-        // If no more AP, clear selection
+        // Return to idle animation
+        if (survivor && survivor.play) {
+          survivor.play(survivor.idleKey);
+        }
+        
+        // If no action points left, clear selection
         if (survivor.actionPoints <= 0) {
+          console.log('No action points remaining, clearing selection');
           this.clearSelection();
+        } else {
+          // Recalculate movement range
+          console.log(`Recalculating movement range with ${survivor.actionPoints} AP`);
+          this.movementSystem.calculateRange(survivor, survivor.actionPoints * MOVEMENT.BASE_SPEED);
+          this.movementSystem.showRange();
         }
       }
     });
-    
-    // Update movement range for remaining AP
-    if (survivor.actionPoints > 0) {
-      this.movementSystem.calculateRange(survivor, survivor.actionPoints * MOVEMENT.BASE_SPEED);
-      this.movementSystem.showRange();
-    } else {
-      this.movementSystem.hideRange();
-    }
   }
   
   // Clear current selection and hide movement range
@@ -691,6 +809,7 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     if (this.selectedSurvivor) {
       this.selectedSurvivor.clearTint();
       this.selectedSurvivor = null;
+      console.log('Cleared selection');
     }
     this.movementSystem.hideRange();
   }
