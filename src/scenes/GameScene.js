@@ -41,7 +41,12 @@ export default class GameScene extends Phaser.Scene {
         const spriteTileX = s.gridX;
         const spriteTileY = s.gridY;
         
-        return spriteTileX === tileX && spriteTileY === tileY;
+        // Check if the hovered tile matches the sprite's grid position
+        // Also check adjacent tiles since the sprite might span multiple tiles
+        const dx = Math.abs(tileX - spriteTileX);
+        const dy = Math.abs(tileY - spriteTileY);
+        
+        return dx <= 0 && dy <= 0; // Check if within the same tile
       });
       
       // Check if hovering over a valid movement tile
@@ -542,21 +547,30 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
         
         // Check if this tile is adjacent to an explored tile
         let isEdge = false;
-        for (let dy = -1; dy <= 1 && !isEdge; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            const nx = x + dx;
-            const ny = y + dy;
-            if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10 && this.infectionHaze[ny][nx] === 1) {
-              isEdge = true;
-              break;
-            }
+        let edgeDirection = { top: false, right: false, bottom: false, left: false };
+        
+        // Check all four directions for explored tiles
+        const directions = [
+          { dx: 0, dy: -1, edge: 'top' },
+          { dx: 1, dy: 0, edge: 'right' },
+          { dx: 0, dy: 1, edge: 'bottom' },
+          { dx: -1, dy: 0, edge: 'left' }
+        ];
+        
+        for (const dir of directions) {
+          const nx = x + dir.dx;
+          const ny = y + dir.dy;
+          if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10 && this.infectionHaze[ny][nx] === 1) {
+            isEdge = true;
+            edgeDirection[dir.edge] = true;
           }
         }
         
         // Draw unexplored tile with edge effect
-        const alpha = isEdge ? 0.5 : VISION.UNEXPLORED_OPACITY;
-        // Use fillStyle with RGB values for more reliable color
-        this.hazeLayer.fillStyle(10, 26, 10, alpha * 255); // Dark green with alpha
+        const alpha = isEdge ? 0.7 : VISION.UNEXPLORED_OPACITY;
+        
+        // Use fillStyle with hex color for better compatibility
+        this.hazeLayer.fillStyle(0x0a1a0a, alpha);
         this.hazeLayer.fillRect(
           x * TILE_SIZE,
           y * TILE_SIZE,
@@ -564,8 +578,46 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
           TILE_SIZE
         );
         
+        // Draw edge highlights
+        if (isEdge) {
+          this.hazeLayer.lineStyle(2, 0x1a3a1a, 0.8);
+          
+          if (edgeDirection.top) {
+            this.hazeLayer.lineBetween(
+              x * TILE_SIZE, 
+              y * TILE_SIZE, 
+              (x + 1) * TILE_SIZE, 
+              y * TILE_SIZE
+            );
+          }
+          if (edgeDirection.right) {
+            this.hazeLayer.lineBetween(
+              (x + 1) * TILE_SIZE, 
+              y * TILE_SIZE, 
+              (x + 1) * TILE_SIZE, 
+              (y + 1) * TILE_SIZE
+            );
+          }
+          if (edgeDirection.bottom) {
+            this.hazeLayer.lineBetween(
+              x * TILE_SIZE, 
+              (y + 1) * TILE_SIZE, 
+              (x + 1) * TILE_SIZE, 
+              (y + 1) * TILE_SIZE
+            );
+          }
+          if (edgeDirection.left) {
+            this.hazeLayer.lineBetween(
+              x * TILE_SIZE, 
+              y * TILE_SIZE, 
+              x * TILE_SIZE, 
+              (y + 1) * TILE_SIZE
+            );
+          }
+        }
+        
         // Add subtle grid lines for better visibility
-        this.hazeLayer.lineStyle(1, 26, 42, 26, 0.3 * 255); // Darker green grid
+        this.hazeLayer.lineStyle(1, 0x1a2a1a, 0.3);
         this.hazeLayer.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
       }
     }
@@ -692,12 +744,20 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     }
     
     // Check if clicking on a survivor
-    const clickedSurvivor = this.survivors.find(s => 
-      s.alive && 
-      s.actionPoints > 0 &&
-      Math.floor(s.x / TILE_SIZE) === tileX && 
-      Math.floor(s.y / TILE_SIZE) === tileY
-    );
+    const clickedSurvivor = this.survivors.find(s => {
+      if (!s.alive || s.actionPoints <= 0) return false;
+      
+      // Get the sprite's grid position directly from its properties
+      const spriteTileX = s.gridX;
+      const spriteTileY = s.gridY;
+      
+      // Check if the clicked tile matches the sprite's grid position
+      // Also check adjacent tiles since the sprite might span multiple tiles
+      const dx = Math.abs(tileX - spriteTileX);
+      const dy = Math.abs(tileY - spriteTileY);
+      
+      return dx <= 0 && dy <= 0; // Check if within the same tile
+    });
     
     // Check if clicking on a valid movement tile
     const isMovementTile = this.movementSystem.movementRange.some(
