@@ -31,12 +31,14 @@ export default class MovementSystem {
     this.movementRange = [];
     this.movementGraphics.clear();
 
-    const startX = Math.floor(unit.x / TILE_SIZE);
-    const startY = Math.floor(unit.y / TILE_SIZE);
+    // Use the unit's grid position directly
+    const startX = unit.gridX;
+    const startY = unit.gridY;
     
     // If the unit is not on a valid tile, return empty range
-    if (startX < 0 || startX >= 10 || startY < 0 || startY >= 10) {
-      console.warn('Unit is outside the grid bounds');
+    if (startX === undefined || startY === undefined || 
+        startX < 0 || startX >= 10 || startY < 0 || startY >= 10) {
+      console.warn('Unit has invalid grid position:', { gridX: startX, gridY: startY });
       return [];
     }
     
@@ -110,46 +112,59 @@ export default class MovementSystem {
     this.movementGraphics.clear();
     
     // Don't show range if there's no range to show
-    if (!range || range.length === 0) return;
+    if (!range || range.length === 0) {
+      console.log('No range to show');
+      return;
+    }
+    
+    console.log(`Showing movement range for ${range.length} tiles`);
     
     // First pass: draw all reachable tiles with lower opacity
     range.forEach(tile => {
       if (tile.cost === 0) return; // Skip the starting tile
       
-      // Calculate alpha based on movement cost (lower cost = more opaque)
-      const alpha = 0.3 + (1 - (tile.cost / (MOVEMENT.BASE_SPEED * 2))) * 0.5;
+      // Higher base alpha for better visibility
+      const baseAlpha = 0.6;
+      const alpha = baseAlpha + ((1 - (tile.cost / (MOVEMENT.BASE_SPEED * 2))) * 0.3);
       
-      // Use orange tones: darker orange for 1AP, lighter orange for 2AP
-      const color = tile.cost <= MOVEMENT.BASE_SPEED ? 0xFF8C00 : 0xFFD700;
+      // Use more vibrant colors
+      const color = tile.cost <= MOVEMENT.BASE_SPEED ? 0xFF6B00 : 0xFFC000;
       
-      // Draw the tile highlight
+      // Draw a larger highlight with rounded corners
+      const padding = 2;
+      const cornerRadius = 4;
+      
+      // Draw the tile highlight with a border
       this.movementGraphics.fillStyle(color, alpha);
-      this.movementGraphics.fillRect(
-        tile.x * TILE_SIZE + 4,
-        tile.y * TILE_SIZE + 4,
-        TILE_SIZE - 8,
-        TILE_SIZE - 8
+      this.movementGraphics.fillRoundedRect(
+        tile.x * TILE_SIZE + padding,
+        tile.y * TILE_SIZE + padding,
+        TILE_SIZE - (padding * 2),
+        TILE_SIZE - (padding * 2),
+        cornerRadius
       );
       
-      // Add a subtle border
-      this.movementGraphics.lineStyle(1, 0xFFFFFF, alpha * 0.5);
-      this.movementGraphics.strokeRect(
-        tile.x * TILE_SIZE + 4,
-        tile.y * TILE_SIZE + 4,
-        TILE_SIZE - 8,
-        TILE_SIZE - 8
+      // Add a more visible border
+      this.movementGraphics.lineStyle(2, 0xFFFFFF, alpha * 0.8);
+      this.movementGraphics.strokeRoundedRect(
+        tile.x * TILE_SIZE + padding,
+        tile.y * TILE_SIZE + padding,
+        TILE_SIZE - (padding * 2),
+        TILE_SIZE - (padding * 2),
+        cornerRadius
       );
     });
     
     // Second pass: highlight the starting position
     const start = range[0];
     if (start) {
-      this.movementGraphics.fillStyle(0x00FF00, 0.3);
-      this.movementGraphics.fillRect(
-        start.x * TILE_SIZE + 4,
-        start.y * TILE_SIZE + 4,
-        TILE_SIZE - 8,
-        TILE_SIZE - 8
+      this.movementGraphics.fillStyle(0x00FF00, 0.5);
+      this.movementGraphics.fillRoundedRect(
+        start.x * TILE_SIZE + 2,
+        start.y * TILE_SIZE + 2,
+        TILE_SIZE - 4,
+        TILE_SIZE - 4,
+        4
       );
     }
   }

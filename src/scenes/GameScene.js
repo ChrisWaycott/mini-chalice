@@ -814,9 +814,9 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       survivor.actionPoints = MOVEMENT.ACTION_POINTS;
     }
     
-    // Get grid position
-    const startX = Math.floor(survivor.x / TILE_SIZE);
-    const startY = Math.floor(survivor.y / TILE_SIZE);
+    // Get grid position from sprite properties
+    const startX = survivor.gridX;
+    const startY = survivor.gridY;
     
     console.log(`Calculating movement range from (${startX}, ${startY}) with ${survivor.actionPoints} AP`);
     
@@ -824,14 +824,32 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     const movementRange = survivor.actionPoints * MOVEMENT.BASE_SPEED;
     
     // Clear any existing range display
-    this.movementSystem.hideRange();
+    if (this.movementSystem) {
+      this.movementSystem.hideRange();
+    } else {
+      console.error('Movement system not initialized!');
+      return;
+    }
     
-    // Calculate and show new range
-    const range = this.movementSystem.calculateRange(survivor, movementRange);
-    this.movementSystem.showRange();
+    // Update obstacles in the movement system
+    const obstacles = [];
+    this.survivors.forEach(s => {
+      if (s !== survivor && s.alive) {
+        obstacles.push({ x: s.gridX, y: s.gridY });
+      }
+    });
+    this.movementSystem.setObstacles(obstacles);
     
-    // Log selection for debugging
-    console.log(`Selected survivor at (${startX}, ${startY}) with ${survivor.actionPoints} AP, movement range: ${movementRange} tiles, found ${range.length} reachable tiles`);
+    try {
+      // Calculate and show new range
+      const range = this.movementSystem.calculateRange(survivor, movementRange);
+      this.movementSystem.showRange();
+      
+      // Log selection for debugging
+      console.log(`Selected survivor at (${startX}, ${startY}) with ${survivor.actionPoints} AP, movement range: ${movementRange} tiles, found ${range?.length || 0} reachable tiles`);
+    } catch (error) {
+      console.error('Error calculating movement range:', error);
+    }
     
     // Force redraw the haze to ensure it's on top
     this.updateHazeMask();
