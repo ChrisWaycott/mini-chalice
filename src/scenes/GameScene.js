@@ -24,8 +24,10 @@ export default class GameScene extends Phaser.Scene {
         return;
       }
       
-      const tileX = Math.floor(pointer.worldX / TILE_SIZE);
-      const tileY = Math.floor(pointer.worldY / TILE_SIZE);
+      // Convert screen coordinates to world coordinates
+      const worldPoint = pointer.positionToCamera(pointer.cameras.main);
+      const tileX = Math.floor(worldPoint.x / TILE_SIZE);
+      const tileY = Math.floor(worldPoint.y / TILE_SIZE);
       
       // Check bounds
       if (tileX < 0 || tileX >= 10 || tileY < 0 || tileY >= 10) {
@@ -552,13 +554,17 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
         
         // Draw unexplored tile with edge effect
         const alpha = isEdge ? 0.5 : VISION.UNEXPLORED_OPACITY;
-        this.hazeLayer.fillStyle(0x000000, alpha);
+        this.hazeLayer.fillStyle(0x0a1a0a, alpha); // Dark green color
         this.hazeLayer.fillRect(
           x * TILE_SIZE,
           y * TILE_SIZE,
           TILE_SIZE,
           TILE_SIZE
         );
+        
+        // Add subtle grid lines for better visibility
+        this.hazeLayer.lineStyle(1, 0x1a2a1a, 0.3);
+        this.hazeLayer.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
       }
     }
     
@@ -670,11 +676,13 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     }
     
     // Convert pointer coordinates to tile coordinates
-    const tileX = Math.floor(pointer.worldX / TILE_SIZE);
-    const tileY = Math.floor(pointer.worldY / TILE_SIZE);
+    // Adjust for camera scroll if needed
+    const worldPoint = pointer.positionToCamera(pointer.cameras.main);
+    const tileX = Math.floor(worldPoint.x / TILE_SIZE);
+    const tileY = Math.floor(worldPoint.y / TILE_SIZE);
     
     // Debug log
-    console.log(`Click at (${tileX}, ${tileY})`);
+    console.log(`Click at screen (${pointer.x},${pointer.y}) -> world (${worldPoint.x},${worldPoint.y}) -> tile (${tileX},${tileY})`);
     
     // Check if the click is within bounds
     if (tileX < 0 || tileX >= 10 || tileY < 0 || tileY >= 10) {
