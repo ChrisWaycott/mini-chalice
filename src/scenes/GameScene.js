@@ -112,23 +112,24 @@ const py = START_GY;
     // Track tile states: 0=unexplored, 1=explored (fully visible)
     this.infectionHaze = Array(10).fill().map(() => Array(10).fill(0));
     
-    // Create graphics for different layers
+    // Create a graphics object for the dark overlay
     this.hazeLayer = this.add.graphics()
-      .fillStyle(0x1a3a1a, 0.9)
+      .fillStyle(0x1a3a1a, 1)
       .fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE)
       .setDepth(1000);
     
-    // Create a mask for visible areas
+    // Create a mask for visible areas (inverse of what we want to hide)
     this.visionMask = this.make.graphics();
-    this.visionMask.fillStyle(0xffffff);
     
-    // Create a container to apply the mask
-    this.hazeContainer = this.add.container(0, 0)
-      .setDepth(1000)
-      .setMask(new Phaser.Display.Masks.GeometryMask(this, this.visionMask));
+    // Create a container for the mask
+    this.maskContainer = this.add.container(0, 0);
     
-    // Add the haze layer to the masked container
-    this.hazeContainer.add(this.hazeLayer);
+    // Create a bitmap mask from the graphics
+    const mask = this.visionMask.createGeometryMask();
+    this.hazeLayer.setMask(mask);
+    
+    // Make sure the mask is updated before the scene renders
+    this.events.on('prerender', () => this.updateHazeMask());
     
     // Store visible tiles for reference
     this.visibleTiles = new Set();
@@ -421,11 +422,13 @@ const py = START_GY;
     
     // Clear previous mask
     this.visionMask.clear();
-    this.visionMask.fillStyle(0x000000, 0.01); // Almost transparent black
+    
+    // Fill the entire mask (this will be the area that gets hidden)
+    this.visionMask.fillStyle(0x000000);
     this.visionMask.fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE);
     
-    // Draw visible areas as white (will be cut out by the mask)
-    this.visionMask.fillStyle(0xffffff, 1);
+    // Draw circles where we want to see through (using destination-out blend mode)
+    this.visionMask.setBlendMode(Phaser.BlendModes.DESTINATION_OUT);
     
     // Track visible tiles for game logic
     const visibleTiles = new Set();
@@ -439,7 +442,7 @@ const py = START_GY;
         const fullVisionRadius = 2 * TILE_SIZE;
         
         // Draw outer edge (semi-transparent)
-        this.visionMask.fillStyle(0xffffff, 0.4);
+        this.visionMask.fillStyle(0xffffff, 0.6);
         this.visionMask.fillCircle(centerX, centerY, visionRadius);
         
         // Draw inner circle (fully visible)
@@ -466,6 +469,9 @@ const py = START_GY;
         }
       }
     });
+    
+    // Reset blend mode
+    this.visionMask.setBlendMode(Phaser.BlendModes.NORMAL);
     
     // Store visible tiles for reference
     this.visibleTiles = visibleTiles;
