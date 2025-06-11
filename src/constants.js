@@ -19,3 +19,9 @@ export const TILE = {
 export const ENEMY = {
   UNDEAD: 'zombie', // asset key unchanged
 };
+
+export const MOVEMENT = {
+  BASE_SPEED: 1,          // Tiles per AP
+  DIAGONAL_COST: 1.5,    // Cost multiplier for diagonal movement
+  ACTION_POINTS: 2       // AP per turn
+};
