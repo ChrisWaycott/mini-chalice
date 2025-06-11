@@ -570,7 +570,7 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
         const alpha = isEdge ? 0.7 : VISION.UNEXPLORED_OPACITY;
         
         // Use fillStyle with hex color for better compatibility
-        this.hazeLayer.fillStyle(0x0a1a0a, alpha);
+        this.hazeLayer.fillStyle(0x0a1a0a);
         this.hazeLayer.fillRect(
           x * TILE_SIZE,
           y * TILE_SIZE,
@@ -814,9 +814,9 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       survivor.actionPoints = MOVEMENT.ACTION_POINTS;
     }
     
-    // Get grid position
-    const startX = Math.floor(survivor.x / TILE_SIZE);
-    const startY = Math.floor(survivor.y / TILE_SIZE);
+    // Get grid position directly from sprite properties
+    const startX = survivor.gridX;
+    const startY = survivor.gridY;
     
     console.log(`Calculating movement range from (${startX}, ${startY}) with ${survivor.actionPoints} AP`);
     
@@ -824,7 +824,25 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     const movementRange = survivor.actionPoints * MOVEMENT.BASE_SPEED;
     
     // Clear any existing range display
-    this.movementSystem.hideRange();
+    if (this.movementSystem) {
+      this.movementSystem.hideRange();
+    }
+    
+    // Ensure movement system is initialized
+    if (!this.movementSystem) {
+      this.movementSystem = new MovementSystem(this, 10, 10);
+    }
+    
+    // Update grid with current obstacles
+    const obstacles = [];
+    this.survivors.forEach(s => {
+      if (s !== survivor && s.alive) {
+        obstacles.push({ x: s.gridX, y: s.gridY });
+      }
+    });
+    
+    // Set obstacles in movement system
+    this.movementSystem.setObstacles(obstacles);
     
     // Calculate and show new range
     const range = this.movementSystem.calculateRange(survivor, movementRange);
