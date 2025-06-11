@@ -11,20 +11,11 @@ export default class GameScene extends Phaser.Scene {
   preload() { /* nothing */ }
 
   create() {
-    // Set up movement keys ONCE
-    this.keys = this.input.keyboard.addKeys({
-      LEFT: 'LEFT',
-      RIGHT: 'RIGHT',
-      UP: 'UP',
-      DOWN: 'DOWN',
-      A: 'A',
-      D: 'D',
-      W: 'W',
-      S: 'S'
-    });
     this.turn = 'player'; // 'player' or 'enemy'
-    this.playerMovesLeft = 5; // player can move up to 5 tiles per turn
     this.enemyMoved = false;
+    this.survivors = []; // Initialize survivors array
+    this.selectedSurvivor = null; // Track selected survivor
+    this.currentTurn = 'player'; // Track current turn
     /* ---------- map (10 × 10 floor) ---------- */
     this.grid      = [];
     this.tileLayer = this.add.layer();
@@ -59,8 +50,9 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     this.currentTurn = 'player'; // 'player' or 'enemy'
     this.survivors = [];
     
-    // Set up input handling
-    this.input.on('pointerdown', this.handlePointerDown, this);
+    // Set up input handling - bind the method to maintain 'this' context
+    this.handlePointerDown = this.handlePointerDown.bind(this);
+    this.input.on('pointerdown', this.handlePointerDown);
     
     // Add end turn button
     this.endTurnButton = this.add.text(
@@ -231,38 +223,15 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
   }
 
   update() {
-    // Toggle between survivors with 1 and 2
-    // Only allow toggling to alive survivors
-    let survivorSwitched = false;
-    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('ONE')) && this.survivors[0].alive) {
-      this.activeSurvivorIndex = 0;
-      this.player = this.survivors[0];
-      survivorSwitched = true;
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('TWO')) && this.survivors[1].alive) {
-      this.activeSurvivorIndex = 1;
-      this.player = this.survivors[1];
-      survivorSwitched = true;
-    }
-    
-    // Update infection haze when switching survivors
-    if (survivorSwitched && this.updateHazeMask) {
-      this.updateHazeMask();
-    }
-    // If active survivor is dead, auto-switch to next alive
-    if (!this.player.alive) {
-      const nextAlive = this.survivors.findIndex(s => s.alive);
-      if (nextAlive !== -1) {
-        this.activeSurvivorIndex = nextAlive;
-        this.player = this.survivors[nextAlive];
-      }
-    }
-
     // Update HP text positions for all survivors
     this.survivors.forEach(s => {
-      s.hpText.setPosition(s.x, s.y - 54);
-      s.hpText.setText(s.hp.toString());
+      if (s.hpText) {
+        s.hpText.setPosition(s.x, s.y - 54);
+        s.hpText.setText(s.hp.toString());
+      }
     });
+    
+    // Update undead HP text and shadows
     this.undead.getChildren().forEach(u => {
       if (u.hpText) {
         u.hpText.setPosition(u.x, u.y - 54);
@@ -272,97 +241,85 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
         u.shadow.setPosition(u.x, u.y - 4);
       }
     });
+    
     // Update survivor shadows
     this.survivors.forEach(s => {
       if (s.shadow) {
         s.shadow.setPosition(s.x, s.y - 4);
       }
     });
-    if (this.turn === 'player') {
-      // DEBUG: Reset .moving for all survivors and log their state
-      this.survivors.forEach((s, i) => {
-        if (s.moving) {
-          console.warn(`Survivor ${i + 1} (${s.spriteKey}) was stuck moving. Forcibly resetting.`);
-        }
-        s.moving = false;
-        console.log(`Survivor ${i + 1} alive=${s.alive} moving=${s.moving}`);
-      });
-      // If all survivors are dead, game over
-      if (!this.survivors.some(s => s.alive)) {
-        // TODO: trigger game over UI
-        return;
-      }
-      if (!this.player.moving && this.player.alive && this.playerMovesLeft > 0) {
-        const dir = this.getDirJustDown();
-        if (dir) {
-          this.tryMove(dir.dx, dir.dy);
-          this.playerMovesLeft--;
-        }
-      }
-      // End turn with ENTER or when out of moves
-      if ((this.playerMovesLeft === 0 || Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('ENTER'))) && !this.player.moving) {
-        this.turn = 'enemy';
-      }
-      // Death test key
-      if (this.player.alive && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
-        this.killSurvivor(this.player);
-      }
-    } else if (this.turn === 'enemy') {
-      if (!this.enemyMoved) {
-        this.undead.getChildren().forEach((u) => {
-          if (!u.moving) {
-            // Find any adjacent alive survivor
-            const targetSurvivor = this.survivors.find(s => s.alive && Math.abs(u.gridX - s.gridX) + Math.abs(u.gridY - s.gridY) === 1);
-            if (targetSurvivor) {
-              // Flip undead sprite for attack direction
-              u.flipX = (targetSurvivor.gridX < u.gridX);
-              u.play('zombie-attack', true);
-              targetSurvivor.hp -= 1;
-              if (targetSurvivor.hpText) targetSurvivor.hpText.setText(targetSurvivor.hp.toString());
-              if (targetSurvivor.hp <= 0) {
-                if (targetSurvivor.hpText) targetSurvivor.hpText.destroy();
-                this.killSurvivor(targetSurvivor);
-              }
-              // No move if attacking
-              return;
+    
+    // Check for game over
+    if (this.turn === 'player' && !this.survivors.some(s => s.alive)) {
+      console.log('Game Over - All survivors are dead');
+      // TODO: trigger game over UI
+      return;
+    }
+    
+    // Handle enemy turn
+    if (this.turn === 'enemy' && !this.enemyMoved) {
+      this.undead.getChildren().forEach((u) => {
+        if (!u.moving) {
+          // Find any adjacent alive survivor
+          const targetSurvivor = this.survivors.find(s => 
+            s.alive && Math.abs(u.gridX - s.gridX) + Math.abs(u.gridY - s.gridY) === 1
+          );
+          
+          if (targetSurvivor) {
+            // Attack survivor
+            u.flipX = (targetSurvivor.gridX < u.gridX);
+            u.play('zombie-attack', true);
+            targetSurvivor.hp -= 1;
+            
+            if (targetSurvivor.hpText) {
+              targetSurvivor.hpText.setText(targetSurvivor.hp.toString());
             }
-            // Move toward nearest alive survivor
-            const aliveSurvivors = this.survivors.filter(s => s.alive);
-            if (aliveSurvivors.length === 0) return; // no targets left
-            // Find closest survivor
-            let closest = aliveSurvivors[0];
-            let minDist = Math.abs(u.gridX - closest.gridX) + Math.abs(u.gridY - closest.gridY);
-            for (const s of aliveSurvivors) {
-              const dist = Math.abs(u.gridX - s.gridX) + Math.abs(u.gridY - s.gridY);
-              if (dist < minDist) {
-                minDist = dist;
-                closest = s;
-              }
+            
+            if (targetSurvivor.hp <= 0) {
+              if (targetSurvivor.hpText) targetSurvivor.hpText.destroy();
+              this.killSurvivor(targetSurvivor);
             }
-            const dx = closest.gridX - u.gridX;
-            const dy = closest.gridY - u.gridY;
-            let mx = 0, my = 0;
-            if (Math.abs(dx) > Math.abs(dy)) {
-              mx = Math.sign(dx);
-            } else if (dy !== 0) {
-              my = Math.sign(dy);
-            }
-            if (mx !== 0 || my !== 0) {
-              // Prevent undead from moving onto survivors or other undead
-              const occupied = this.survivors.some(s => s.alive && s.gridX === u.gridX + mx && s.gridY === u.gridY + my) ||
-                this.undead.getChildren().some(other => other !== u && other.gridX === u.gridX + mx && other.gridY === u.gridY + my);
-              if (!occupied) {
-                this.moveSprite(u, mx, my);
-              }
+            return;
+          }
+          
+          // Move toward nearest alive survivor
+          const aliveSurvivors = this.survivors.filter(s => s.alive);
+          if (aliveSurvivors.length === 0) return; // no targets left
+          
+          // Find closest survivor
+          let closest = aliveSurvivors[0];
+          let minDist = Math.abs(u.gridX - closest.gridX) + Math.abs(u.gridY - closest.gridY);
+          
+          for (const s of aliveSurvivors) {
+            const dist = Math.abs(u.gridX - s.gridX) + Math.abs(u.gridY - s.gridY);
+            if (dist < minDist) {
+              minDist = dist;
+              closest = s;
             }
           }
-        });
-        this.enemyMoved = true;
-      }
-      // Wait for all undead to finish moving before returning to player turn
-      const anyMoving = this.undead.getChildren().some(u => u.moving);
-      if (!anyMoving && this.enemyMoved) {
-        this.turn = 'player';
+          
+          const dx = closest.gridX - u.gridX;
+          const dy = closest.gridY - u.gridY;
+          let mx = 0, my = 0;
+          
+          if (Math.abs(dx) > Math.abs(dy)) {
+            mx = Math.sign(dx);
+          } else if (dy !== 0) {
+            my = Math.sign(dy);
+          }
+          
+          if (mx !== 0 || my !== 0) {
+            // Prevent undead from moving onto survivors or other undead
+            const occupied = this.survivors.some(s => 
+              s.alive && s.gridX === u.gridX + mx && s.gridY === u.gridY + my
+            ) || this.undead.getChildren().some(other => 
+              other !== u && other.gridX === u.gridX + mx && other.gridY === u.gridY + my
+            );
+            
+            if (!occupied) {
+              this.moveSprite(u, mx, my);
+            }
+          }
         this.playerMovesLeft = 5;
         this.enemyMoved = false;
       }
