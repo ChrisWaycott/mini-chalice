@@ -109,8 +109,14 @@ const py = START_GY;
     /* ========== INFECTION HAZE ========== */
     console.log('Initializing Infection Haze system...', new Date().toISOString());
     
-    // Track tile states: 0=unexplored, 1=explored (fully visible)
+    // Track tile states: 0=unexplored, 1=explored (fog of war), 2=visible
     this.infectionHaze = Array(10).fill().map(() => Array(10).fill(0));
+    
+    // Create a single graphics object for the fog of war
+    this.hazeLayer = this.add.graphics()
+      .fillStyle(0x1a3a1a, 1)
+      .fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE)
+      .setDepth(1000);
     
     // Initialize explored areas around starting survivors
     this.survivors.forEach(survivor => {
@@ -124,31 +130,18 @@ const py = START_GY;
             const nx = tileX + x;
             const ny = tileY + y;
             if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-              this.infectionHaze[ny][nx] = 1;
+              this.infectionHaze[ny][nx] = 2; // 2 = visible
             }
           }
         }
       }
     });
     
-    // Create a graphics object for the dark overlay
-    this.hazeLayer = this.add.graphics()
-      .fillStyle(0x1a3a1a, 1)
-      .fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE)
-      .setDepth(1000);
+    // Update the fog of war immediately
+    this.updateHazeMask();
     
-    // Create a mask for visible areas (inverse of what we want to hide)
-    this.visionMask = this.make.graphics();
-    
-    // Create a container for the mask
-    this.maskContainer = this.add.container(0, 0);
-    
-    // Create a bitmap mask from the graphics
-    const mask = this.visionMask.createGeometryMask();
-    this.hazeLayer.setMask(mask);
-    
-    // Make sure the mask is updated before the scene renders
-    this.events.on('prerender', () => this.updateHazeMask());
+    // Update on movement
+    this.events.on('update', this.updateHazeMask, this);
     
     // Store visible tiles for reference
     this.visibleTiles = new Set();
@@ -435,62 +428,38 @@ const py = START_GY;
 
   /* ---------- infection-haze ---------- */
   updateHazeMask() {
-    if (!this.survivors || !this.hazeLayer || !this.visionMask) {
+    if (!this.survivors || !this.hazeLayer) {
       return;
     }
     
-    // Clear previous mask
-    this.visionMask.clear();
-    
-    // Fill the entire mask (this will be the area that gets hidden)
-    this.visionMask.fillStyle(0x000000);
-    this.visionMask.fillRect(0, 0, 10 * TILE_SIZE, 10 * TILE_SIZE);
-    
-    // Draw circles where we want to see through (using destination-out blend mode)
-    this.visionMask.setBlendMode(Phaser.BlendModes.DESTINATION_OUT);
+    // Clear the haze layer
+    this.hazeLayer.clear();
     
     // Track visible tiles for game logic
     const visibleTiles = new Set();
     
-    // First, draw explored areas that should remain visible
-    for (let y = 0; y < 10; y++) {
-      for (let x = 0; x < 10; x++) {
-        if (this.infectionHaze[y][x] === 1) {
-          this.visionMask.fillStyle(0xffffff, 0.3); // Faint visibility for explored areas
-          this.visionMask.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-        }
-      }
-    }
-    
-    // Draw vision circles for all living survivors
+    // First pass: update visibility based on survivor positions
     this.survivors.forEach(survivor => {
       if (survivor && survivor.alive) {
-        const centerX = survivor.x;
-        const centerY = survivor.y;
-        const visionRadius = 3 * TILE_SIZE;
-        const fullVisionRadius = 2 * TILE_SIZE;
+        const centerX = Math.floor(survivor.x / TILE_SIZE);
+        const centerY = Math.floor(survivor.y / TILE_SIZE);
         
-        // Draw outer edge (semi-transparent)
-        this.visionMask.fillStyle(0xffffff, 0.6);
-        this.visionMask.fillCircle(centerX, centerY, visionRadius);
-        
-        // Draw inner circle (fully visible)
-        this.visionMask.fillStyle(0xffffff, 1);
-        this.visionMask.fillCircle(centerX, centerY, fullVisionRadius);
-        
-        // Update visible tiles for game logic
-        const centerTileX = Math.floor(centerX / TILE_SIZE);
-        const centerTileY = Math.floor(centerY / TILE_SIZE);
-        
+        // Update visibility in a 3-tile radius
         for (let y = -3; y <= 3; y++) {
           for (let x = -3; x <= 3; x++) {
-            const nx = centerTileX + x;
-            const ny = centerTileY + y;
+            const nx = centerX + x;
+            const ny = centerY + y;
             const distSq = x * x + y * y;
             
             if (distSq <= 9 && nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-              this.infectionHaze[ny][nx] = 1;
-              if (distSq <= 4) { // Within full vision radius
+              // Mark as explored
+              if (this.infectionHaze[ny][nx] === 0) {
+                this.infectionHaze[ny][nx] = 1;
+              }
+              
+              // Mark as visible if in vision range
+              if (distSq <= 4) {
+                this.infectionHaze[ny][nx] = 2;
                 visibleTiles.add(`${nx},${ny}`);
               }
             }
@@ -499,8 +468,30 @@ const py = START_GY;
       }
     });
     
-    // Reset blend mode
-    this.visionMask.setBlendMode(Phaser.BlendModes.NORMAL);
+    // Draw the fog of war
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        const state = this.infectionHaze[y][x];
+        
+        if (state === 0) {
+          // Unexplored - dark
+          this.hazeLayer.fillStyle(0x1a3a1a, 0.9);
+        } else if (state === 1) {
+          // Explored but not currently visible - dim
+          this.hazeLayer.fillStyle(0x1a3a1a, 0.6);
+        } else {
+          // Currently visible - clear
+          continue;
+        }
+        
+        this.hazeLayer.fillRect(
+          x * TILE_SIZE,
+          y * TILE_SIZE,
+          TILE_SIZE,
+          TILE_SIZE
+        );
+      }
+    }
     
     // Store visible tiles for reference
     this.visibleTiles = visibleTiles;
