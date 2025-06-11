@@ -112,6 +112,25 @@ const py = START_GY;
     // Track tile states: 0=unexplored, 1=explored (fully visible)
     this.infectionHaze = Array(10).fill().map(() => Array(10).fill(0));
     
+    // Initialize explored areas around starting survivors
+    this.survivors.forEach(survivor => {
+      if (survivor) {
+        const tileX = Math.floor(survivor.x / TILE_SIZE);
+        const tileY = Math.floor(survivor.y / TILE_SIZE);
+        
+        // Mark a 3x3 area as explored around each survivor
+        for (let y = -1; y <= 1; y++) {
+          for (let x = -1; x <= 1; x++) {
+            const nx = tileX + x;
+            const ny = tileY + y;
+            if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
+              this.infectionHaze[ny][nx] = 1;
+            }
+          }
+        }
+      }
+    });
+    
     // Create a graphics object for the dark overlay
     this.hazeLayer = this.add.graphics()
       .fillStyle(0x1a3a1a, 1)
@@ -432,6 +451,16 @@ const py = START_GY;
     
     // Track visible tiles for game logic
     const visibleTiles = new Set();
+    
+    // First, draw explored areas that should remain visible
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        if (this.infectionHaze[y][x] === 1) {
+          this.visionMask.fillStyle(0xffffff, 0.3); // Faint visibility for explored areas
+          this.visionMask.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+      }
+    }
     
     // Draw vision circles for all living survivors
     this.survivors.forEach(survivor => {
