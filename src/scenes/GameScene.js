@@ -16,6 +16,42 @@ export default class GameScene extends Phaser.Scene {
     this.survivors = []; // Initialize survivors array
     this.selectedSurvivor = null; // Track selected survivor
     this.currentTurn = 'player'; // Track current turn
+    
+    // Set up pointer move handler for cursor changes
+    this.input.on('pointermove', (pointer) => {
+      if (this.currentTurn !== 'player') {
+        this.game.canvas.style.cursor = 'default';
+        return;
+      }
+      
+      const tileX = Math.floor(pointer.worldX / TILE_SIZE);
+      const tileY = Math.floor(pointer.worldY / TILE_SIZE);
+      
+      // Check bounds
+      if (tileX < 0 || tileX >= 10 || tileY < 0 || tileY >= 10) {
+        this.game.canvas.style.cursor = 'default';
+        return;
+      }
+      
+      // Check if hovering over a selectable survivor
+      const hoveredSurvivor = this.survivors.find(s => 
+        s.alive && 
+        s.actionPoints > 0 &&
+        Math.floor(s.x / TILE_SIZE) === tileX && 
+        Math.floor(s.y / TILE_SIZE) === tileY
+      );
+      
+      // Check if hovering over a valid movement tile
+      const isMovementTile = this.movementSystem?.movementRange?.some(
+        tile => tile.x === tileX && tile.y === tileY
+      );
+      
+      if (hoveredSurvivor || (isMovementTile && this.selectedSurvivor?.actionPoints > 0)) {
+        this.game.canvas.style.cursor = 'pointer';
+      } else {
+        this.game.canvas.style.cursor = 'default';
+      }
+    });
     /* ---------- map (10 × 10 floor) ---------- */
     this.grid      = [];
     this.tileLayer = this.add.layer();
@@ -448,6 +484,7 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
   /* ---------- infection-haze ---------- */
   updateHazeMask() {
     if (!this.survivors || !this.hazeLayer || !this.infectionHaze) {
+      console.warn('Haze system not properly initialized');
       return;
     }
     
@@ -457,11 +494,11 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     // Track visible tiles for game logic
     const visibleTiles = new Set();
     
-    // First pass: reset visibility for all tiles (only show explored areas)
+    // First pass: mark all currently visible tiles as explored
     for (let y = 0; y < 10; y++) {
       for (let x = 0; x < 10; x++) {
-        if (this.infectionHaze[y][x] === 2) {
-          this.infectionHaze[y][x] = 1; // Set previously visible to explored
+        if (this.infectionHaze[y][x] === 1) {
+          this.infectionHaze[y][x] = 1; // Already explored
         }
       }
     }
@@ -483,38 +520,39 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
             
             // Check if within bounds and within vision range
             if (distSq <= visionRangeSquared && nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-              // Mark as explored (if not already visible)
-              if (this.infectionHaze[ny][nx] !== 2) {
-                this.infectionHaze[ny][nx] = 1;
-              }
-              
-              // Mark as visible if in vision range
-              if (distSq <= visionRangeSquared) {
-                this.infectionHaze[ny][nx] = 2;
-                visibleTiles.add(`${nx},${ny}`);
-              }
+              // Mark as explored
+              this.infectionHaze[ny][nx] = 1;
+              visibleTiles.add(`${nx},${ny}`);
             }
           }
         }
       }
     });
     
-    // Draw the fog of war
+    // Third pass: draw the fog of war with edge effect
     for (let y = 0; y < 10; y++) {
       for (let x = 0; x < 10; x++) {
-        const state = this.infectionHaze[y][x];
+        const isExplored = this.infectionHaze[y][x] === 1;
         
-        if (state === 0) {
-          // Unexplored - dark
-          this.hazeLayer.fillStyle(0x1a3a1a, VISION.UNEXPLORED_OPACITY);
-        } else if (state === 1) {
-          // Explored but not currently visible - dim
-          this.hazeLayer.fillStyle(0x1a3a1a, VISION.EXPLORED_OPACITY);
-        } else {
-          // Currently visible - clear
-          continue;
+        // Skip explored tiles (they're fully visible)
+        if (isExplored) continue;
+        
+        // Check if this tile is adjacent to an explored tile
+        let isEdge = false;
+        for (let dy = -1; dy <= 1 && !isEdge; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10 && this.infectionHaze[ny][nx] === 1) {
+              isEdge = true;
+              break;
+            }
+          }
         }
         
+        // Draw unexplored tile with edge effect
+        const alpha = isEdge ? 0.5 : VISION.UNEXPLORED_OPACITY;
+        this.hazeLayer.fillStyle(0x000000, alpha);
         this.hazeLayer.fillRect(
           x * TILE_SIZE,
           y * TILE_SIZE,
@@ -646,31 +684,27 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     }
     
     // Check if clicking on a survivor
-    const clickedSurvivor = this.survivors.find(s => {
-      if (!s.alive) return false;
-      
-      const survivorTileX = Math.floor(s.x / TILE_SIZE);
-      const survivorTileY = Math.floor((s.y - TILE_SIZE/2) / TILE_SIZE); // Adjust for origin point
-      
-      return (
-        s.actionPoints > 0 &&
-        survivorTileX === tileX && 
-        survivorTileY === tileY
-      );
-    });
+    const clickedSurvivor = this.survivors.find(s => 
+      s.alive && 
+      s.actionPoints > 0 &&
+      Math.floor(s.x / TILE_SIZE) === tileX && 
+      Math.floor(s.y / TILE_SIZE) === tileY
+    );
+    
+    // Check if clicking on a valid movement tile
+    const isMovementTile = this.movementSystem.movementRange.some(
+      tile => tile.x === tileX && tile.y === tileY
+    );
     
     if (clickedSurvivor) {
-      console.log('Clicked on survivor:', clickedSurvivor);
-      
       if (this.selectedSurvivor === clickedSurvivor) {
-        // Clicked the same survivor - deselect
-        console.log('Deselecting survivor');
         this.clearSelection();
       } else {
-        // Select the clicked survivor
-        console.log('Selecting new survivor');
         this.selectSurvivor(clickedSurvivor);
       }
+      return;
+    } else if (isMovementTile && this.selectedSurvivor?.actionPoints > 0) {
+      this.moveSelectedSurvivor(tileX, tileY);
       return;
     }
     
@@ -692,10 +726,13 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     // Set new selection
     this.selectedSurvivor = survivor;
     
+    // Store original scale for pulsing effect
+    const originalScale = survivor.scale;
+    
     // Add a pulsing effect to the selected survivor
     this.tweens.add({
       targets: survivor,
-      scale: { from: survivor.scale * 1.1, to: survivor.scale },
+      scale: { from: originalScale * 1.1, to: originalScale },
       duration: 500,
       yoyo: true,
       repeat: -1
@@ -709,19 +746,27 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       survivor.actionPoints = MOVEMENT.ACTION_POINTS;
     }
     
-    // Calculate and show movement range
+    // Get grid position
     const startX = Math.floor(survivor.x / TILE_SIZE);
-    const startY = Math.floor((survivor.y - TILE_SIZE/2) / TILE_SIZE);
+    const startY = Math.floor(survivor.y / TILE_SIZE);
     
     console.log(`Calculating movement range from (${startX}, ${startY}) with ${survivor.actionPoints} AP`);
     
     // Calculate movement range based on action points
     const movementRange = survivor.actionPoints * MOVEMENT.BASE_SPEED;
-    this.movementSystem.calculateRange(survivor, movementRange);
+    
+    // Clear any existing range display
+    this.movementSystem.hideRange();
+    
+    // Calculate and show new range
+    const range = this.movementSystem.calculateRange(survivor, movementRange);
     this.movementSystem.showRange();
     
     // Log selection for debugging
-    console.log(`Selected survivor at (${startX}, ${startY}) with ${survivor.actionPoints} AP, movement range: ${movementRange} tiles`);
+    console.log(`Selected survivor at (${startX}, ${startY}) with ${survivor.actionPoints} AP, movement range: ${movementRange} tiles, found ${range.length} reachable tiles`);
+    
+    // Force redraw the haze to ensure it's on top
+    this.updateHazeMask();
   }
   
   // Move selected survivor to target tile
@@ -807,11 +852,19 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
   // Clear current selection and hide movement range
   clearSelection() {
     if (this.selectedSurvivor) {
+      // Clear any active tweens on the survivor
+      this.tweens.killTweensOf(this.selectedSurvivor);
+      // Reset scale to original size
+      this.selectedSurvivor.setScale(1);
+      // Clear tint
       this.selectedSurvivor.clearTint();
       this.selectedSurvivor = null;
       console.log('Cleared selection');
     }
+    // Hide movement range
     this.movementSystem.hideRange();
+    // Force redraw the haze to ensure it's updated
+    this.updateHazeMask();
   }
   
   // End current turn and start enemy turn
