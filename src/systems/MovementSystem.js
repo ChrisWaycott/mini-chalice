@@ -4,9 +4,14 @@ export default class MovementSystem {
   constructor(scene) {
     this.scene = scene;
     this.movementRange = [];
+    
+    // Create movement graphics with a higher depth to be above tiles but below UI
     this.movementGraphics = scene.add.graphics();
-    this.movementGraphics.setDepth(5);
+    this.movementGraphics.setDepth(50); // Increased depth to be above most other elements
+    
     this.obstacles = []; // Will store grid coordinates of obstacles
+    
+    console.log('MovementSystem initialized with graphics depth:', this.movementGraphics.depth);
     
     // Initialize with map obstacles
     this.initializeObstacles();
@@ -109,6 +114,15 @@ export default class MovementSystem {
 
   // Draw movement range overlay
   showRange(range = this.movementRange) {
+    console.log('showRange called with:', range);
+    
+    // Ensure we have a valid graphics object
+    if (!this.movementGraphics.scene) {
+      console.log('Recreating movement graphics');
+      this.movementGraphics = this.scene.add.graphics();
+      this.movementGraphics.setDepth(5);
+    }
+    
     this.movementGraphics.clear();
     
     // Don't show range if there's no range to show

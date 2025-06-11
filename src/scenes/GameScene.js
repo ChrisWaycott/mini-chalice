@@ -89,7 +89,10 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     const py = START_GY;
 
     // Initialize movement system
+    console.log('Initializing movement system...');
     this.movementSystem = new MovementSystem(this);
+    console.log('Movement system initialized:', this.movementSystem);
+    
     this.selectedSurvivor = null;
     this.currentTurn = 'player'; // 'player' or 'enemy'
     this.survivors = [];
@@ -751,13 +754,11 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
       const spriteTileX = s.gridX;
       const spriteTileY = s.gridY;
       
-      // Check if the clicked tile matches the sprite's grid position
-      // Also check adjacent tiles since the sprite might span multiple tiles
-      const dx = Math.abs(tileX - spriteTileX);
-      const dy = Math.abs(tileY - spriteTileY);
-      
-      return dx <= 0 && dy <= 0; // Check if within the same tile
+      // Check if the click is on the same tile as the survivor's grid position
+      return tileX === spriteTileX && tileY === spriteTileY;
     });
+    
+    console.log('Clicked survivor:', clickedSurvivor ? 'found' : 'not found');
     
     // Check if clicking on a valid movement tile
     const isMovementTile = this.movementSystem.movementRange.some(
@@ -788,6 +789,8 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
   
   // Select a survivor and show movement range
   selectSurvivor(survivor) {
+    console.log('Selecting survivor:', survivor);
+    
     // Clear previous selection
     this.clearSelection();
     
@@ -822,14 +825,16 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
     
     // Calculate movement range based on action points
     const movementRange = survivor.actionPoints * MOVEMENT.BASE_SPEED;
+    console.log('Movement range:', movementRange, 'tiles');
     
     // Clear any existing range display
-    if (this.movementSystem) {
-      this.movementSystem.hideRange();
-    } else {
+    if (!this.movementSystem) {
       console.error('Movement system not initialized!');
       return;
     }
+    
+    console.log('Hiding previous range...');
+    this.movementSystem.hideRange();
     
     // Update obstacles in the movement system
     const obstacles = [];
@@ -838,15 +843,18 @@ if (x === 0 || x === 9 || y === 0 || y === 9) {
         obstacles.push({ x: s.gridX, y: s.gridY });
       }
     });
+    console.log('Setting obstacles:', obstacles);
     this.movementSystem.setObstacles(obstacles);
     
     try {
-      // Calculate and show new range
+      console.log('Calculating movement range...');
       const range = this.movementSystem.calculateRange(survivor, movementRange);
-      this.movementSystem.showRange();
+      console.log('Movement range calculated, showing range...');
+      this.movementSystem.showRange(range); // Pass the range explicitly
       
       // Log selection for debugging
       console.log(`Selected survivor at (${startX}, ${startY}) with ${survivor.actionPoints} AP, movement range: ${movementRange} tiles, found ${range?.length || 0} reachable tiles`);
+      console.log('Movement range tiles:', range);
     } catch (error) {
       console.error('Error calculating movement range:', error);
     }
