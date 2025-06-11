@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TILE_SIZE, MOVE_TWEEN_MS, TILE } from '../constants.js';
+import { TILE_SIZE, MOVE_TWEEN_MS, TILE, VISION } from '../constants.js';
 import { scaleToTile } from '../utils/scaleToTile.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -55,15 +55,17 @@ const py = START_GY;
     this.survivors = [];
     // Raider_1
     const p1 = this.add
-      .sprite(px * TILE_SIZE + TILE_SIZE / 2, py * TILE_SIZE + TILE_SIZE, 'raider-idle')
+      .sprite(1 * TILE_SIZE + TILE_SIZE / 2, 1 * TILE_SIZE + TILE_SIZE, 'raider-idle')
       .setOrigin(0.5, 1)
       .setDepth(10)
       .play('raider-idle');
+
     scaleToTile(p1);
     p1.setScale(p1.scaleX * 1.6);
-    p1.gridX = px;
-    p1.gridY = py;
-    p1.hp = 3;
+    p1.gridX = 1;
+    p1.gridY = 1;
+    p1.hp = 5;
+    p1.maxHp = 5;
     p1.hpText = this.add.text(
       p1.x,
       p1.y - 54,
@@ -75,19 +77,23 @@ const py = START_GY;
     p1.attackKey = 'raider-attack';
     p1.idleKey = 'raider-idle';
     p1.alive = true;
+    p1.visionRange = VISION.BASE_RANGE; // Base vision range
     p1.shadow = this.add.ellipse(p1.x, p1.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5).setDepth(9);
     this.survivors.push(p1);
-    // Raider_2 (spawn at opposite corner)
+    
+    // Raider_2 with enhanced vision
     const p2 = this.add
-      .sprite(8 * TILE_SIZE + TILE_SIZE / 2, 8 * TILE_SIZE + TILE_SIZE, 'raider2-idle')
+      .sprite(3 * TILE_SIZE + TILE_SIZE / 2, 1 * TILE_SIZE + TILE_SIZE, 'raider2-idle')
       .setOrigin(0.5, 1)
       .setDepth(10)
       .play('raider2-idle');
+
     scaleToTile(p2);
     p2.setScale(p2.scaleX * 1.6);
-    p2.gridX = 8;
-    p2.gridY = 8;
-    p2.hp = 3;
+    p2.gridX = 3;
+    p2.gridY = 1;
+    p2.hp = 5;
+    p2.maxHp = 5;
     p2.hpText = this.add.text(
       p2.x,
       p2.y - 54,
@@ -99,6 +105,7 @@ const py = START_GY;
     p2.attackKey = 'raider2-attack';
     p2.idleKey = 'raider2-idle';
     p2.alive = true;
+    p2.visionRange = VISION.INCREASED_RANGE; // Enhanced vision range
     p2.shadow = this.add.ellipse(p2.x, p2.y - 4, 32, 10, 0x000000, 0.3).setOrigin(0.5, 0.5).setDepth(9);
     this.survivors.push(p2);
     // Set active survivor
@@ -438,27 +445,39 @@ const py = START_GY;
     // Track visible tiles for game logic
     const visibleTiles = new Set();
     
-    // First pass: update visibility based on survivor positions
+    // First pass: reset visibility for all tiles (only show explored areas)
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        if (this.infectionHaze[y][x] === 2) {
+          this.infectionHaze[y][x] = 1; // Set previously visible to explored
+        }
+      }
+    }
+    
+    // Second pass: update visibility based on survivor positions
     this.survivors.forEach(survivor => {
       if (survivor && survivor.alive) {
         const centerX = Math.floor(survivor.x / TILE_SIZE);
         const centerY = Math.floor(survivor.y / TILE_SIZE);
+        const visionRange = survivor.visionRange || VISION.BASE_RANGE;
+        const visionRangeSquared = visionRange * visionRange;
         
-        // Update visibility in a 3-tile radius
-        for (let y = -3; y <= 3; y++) {
-          for (let x = -3; x <= 3; x++) {
+        // Calculate vision area based on range
+        for (let y = -visionRange; y <= visionRange; y++) {
+          for (let x = -visionRange; x <= visionRange; x++) {
             const nx = centerX + x;
             const ny = centerY + y;
             const distSq = x * x + y * y;
             
-            if (distSq <= 9 && nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-              // Mark as explored
-              if (this.infectionHaze[ny][nx] === 0) {
+            // Check if within bounds and within vision range
+            if (distSq <= visionRangeSquared && nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
+              // Mark as explored (if not already visible)
+              if (this.infectionHaze[ny][nx] !== 2) {
                 this.infectionHaze[ny][nx] = 1;
               }
               
               // Mark as visible if in vision range
-              if (distSq <= 4) {
+              if (distSq <= visionRangeSquared) {
                 this.infectionHaze[ny][nx] = 2;
                 visibleTiles.add(`${nx},${ny}`);
               }
@@ -475,10 +494,10 @@ const py = START_GY;
         
         if (state === 0) {
           // Unexplored - dark
-          this.hazeLayer.fillStyle(0x1a3a1a, 0.9);
+          this.hazeLayer.fillStyle(0x1a3a1a, VISION.UNEXPLORED_OPACITY);
         } else if (state === 1) {
           // Explored but not currently visible - dim
-          this.hazeLayer.fillStyle(0x1a3a1a, 0.6);
+          this.hazeLayer.fillStyle(0x1a3a1a, VISION.EXPLORED_OPACITY);
         } else {
           // Currently visible - clear
           continue;
