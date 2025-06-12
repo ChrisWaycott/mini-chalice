@@ -20,9 +20,13 @@ export const ENEMY = {
 };
 
 export const MOVEMENT = {
-  BASE_SPEED: 4,          // Tiles per AP (from glossary)
-  DIAGONAL_COST: 1.5,    // Movement point multiplier for diagonal movement
-  ACTION_POINTS: 2,      // AP per turn
-  TILE_COST_ORTHOGONAL: 1, // Movement points per orthogonal tile
-  TILE_COST_DIAGONAL: 1.5  // Movement points per diagonal tile
+  // Base movement points per AP (4 tiles per AP)
+  BASE_SPEED: 4,           // Tiles per AP
+  // Movement costs in movement points
+  TILE_COST_ORTHOGONAL: 1,   // 1 MP per orthogonal tile
+  TILE_COST_DIAGONAL: 1.5,   // 1.5 MP per diagonal tile
+  // Maximum AP per turn
+  ACTION_POINTS: 2,         // 2 AP per turn = 8 MP
+  // Maximum movement per turn (2 AP * 4 tiles/AP = 8 MP)
+  MAX_MOVEMENT_POINTS: 8    // 8 MP = 2 AP
 };

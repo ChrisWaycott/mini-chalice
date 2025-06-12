@@ -4,18 +4,38 @@ export default class MovementSystem {
   constructor(scene) {
     this.scene = scene;
     this.movementRange = [];
-    this.rangeTexts = []; // Array to store text objects for AP costs
-    this.obstacles = []; // Stores grid coordinates of obstacles
-    this.unit = null; // Reference to the currently selected unit
+    this.movementGraphics = null;
+    this.rangeTexts = [];
+    this.pathGraphics = null;  // For drawing the path preview
+    this.currentPath = [];     // Current path being previewed
+    this.mousePath = [];       // Track the actual mouse path
+    this.lastGridX = -1;     // Last grid X position
+    this.lastGridY = -1;     // Last grid Y position
+    this.lastDirX = 0;
+    this.lastDirY = 0;
+    this.isBuildingPath = false; // Prevent multiple updates
+    this.obstacles = [];
+    this.unit = null;
+    this.invalidMove = null; // Track invalid moves for visual feedback
     
-    // Create movement graphics with a higher depth to be above tiles but below UI
-    this.movementGraphics = scene.add.graphics();
-    this.movementGraphics.setDepth(50);
+    // Initialize graphics
+    this.init();
     
-    console.log('MovementSystem initialized with graphics depth:', this.movementGraphics.depth);
-    
-    // Initialize with map obstacles
+    // Initialize obstacles
     this.initializeObstacles();
+  }
+  
+  // Initialize graphics objects
+  init() {
+    if (!this.movementGraphics) {
+      this.movementGraphics = this.scene.add.graphics();
+      this.movementGraphics.setDepth(50);
+    }
+    
+    if (!this.pathGraphics) {
+      this.pathGraphics = this.scene.add.graphics();
+      this.pathGraphics.setDepth(60); // Above movement range but below UI
+    }
   }
   
   // Initialize obstacles from the game grid
@@ -32,398 +52,606 @@ export default class MovementSystem {
     }
   }
 
-  // Calculate movement range using BFS with action points
-  // Each move must consume whole action points (1 AP = 4 movement points)
-  // Orthogonal moves cost 1 MP (1/4 AP), diagonal moves cost 1.5 MP (3/8 AP)
-  calculateRange(unit, maxAP) {
-    this.movementRange = [];
-    this.movementGraphics.clear();
+  // Add a point to the mouse path if it's a new grid cell
+  addMousePoint(gridX, gridY) {
+    // Initialize last grid position if needed
+    if (this.lastGridX === -1 || this.lastGridY === -1) {
+      this.lastGridX = gridX;
+      this.lastGridY = gridY;
+      this.mousePath = [{ x: gridX, y: gridY }];
+      console.log('Initialized path at', { x: gridX, y: gridY });
+      return true;
+    }
 
-    // Convert AP to movement points (4 per AP)
-    // Use all available movement points, including partial AP
-    const maxMovementPoints = maxAP * 4;
-    
-    // Use the unit's grid position directly
-    const startX = unit.gridX;
-    const startY = unit.gridY;
-    
-    // If the unit is not on a valid tile, return empty range
-    if (startX === undefined || startY === undefined || 
-        startX < 0 || startX >= 10 || startY < 0 || startY >= 10) {
-      console.warn('Unit is not on a valid tile');
-      return [];
+    // Skip if we're still on the same grid cell
+    if (this.lastGridX === gridX && this.lastGridY === gridY) {
+      return false;
     }
     
-    // Add starting position to range with 0 cost
-    const range = [{
-      x: startX,
-      y: startY,
-      cost: 0,
-      path: [],
-      isDiagonal: false,
-      remainingAP: maxAP,
-      remainingMP: maxMovementPoints
-    }];
+    // Calculate direction and distance
+    const dx = gridX - this.lastGridX;
+    const dy = gridY - this.lastGridY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
     
-    // Track visited tiles and best remaining AP
-    const visited = new Map();
-    visited.set(`${startX},${startY}`, maxAP);
+    // Only allow single-tile moves (orthogonal or diagonal)
+    if (absDx > 1 || absDy > 1) {
+      console.log('Skipping multi-tile move', { dx, dy });
+      return false;
+    }
     
-    // Define movement directions with their costs
-    const directions = [
-      { dx: -1, dy: 0, cost: 1, isDiagonal: false },  // left
-      { dx: 1, dy: 0, cost: 1, isDiagonal: false },   // right
-      { dx: 0, dy: -1, cost: 1, isDiagonal: false },  // up
-      { dx: 0, dy: 1, cost: 1, isDiagonal: false },   // down
-      { dx: -1, dy: -1, cost: 1.5, isDiagonal: true }, // top-left
-      { dx: 1, dy: -1, cost: 1.5, isDiagonal: true },  // top-right
-      { dx: -1, dy: 1, cost: 1.5, isDiagonal: true },  // bottom-left
-      { dx: 1, dy: 1, cost: 1.5, isDiagonal: true }    // bottom-right
-    ];
-    
-    // Use BFS to explore all reachable tiles
-    const queue = [{
-      x: startX,
-      y: startY,
-      remainingAP: maxAP,
-      remainingMP: maxMovementPoints,
-      path: []
-    }];
-    
-    while (queue.length > 0) {
-      const current = queue.shift();
+    // Check if we're moving back to a previous point in the path
+    if (this.mousePath.length > 1) {
+      const prevPoint = this.mousePath[this.mousePath.length - 2];
+      if (prevPoint && prevPoint.x === gridX && prevPoint.y === gridY) {
+        // Moving back one step - trim the last point
+        this.mousePath.pop();
+        this.lastGridX = gridX;
+        this.lastGridY = gridY;
+        console.log('Trimmed path back to', { x: gridX, y: gridY });
+        return true;
+      }
       
-      // Check all 8 directions
-      for (const { dx, dy, cost, isDiagonal } of directions) {
-        const nx = current.x + dx;
-        const ny = current.y + dy;
-        const key = `${nx},${ny}`;
+      // Check if we're crossing back over the path (not just the previous point)
+      const existingIndex = this.mousePath.findIndex(p => p.x === gridX && p.y === gridY);
+      if (existingIndex >= 0 && existingIndex < this.mousePath.length - 2) {
+        // Moving back to a point earlier in the path - trim to that point
+        this.mousePath = this.mousePath.slice(0, existingIndex + 1);
+        this.lastGridX = gridX;
+        this.lastGridY = gridY;
+        console.log('Trimmed path back to earlier point', { x: gridX, y: gridY });
+        return true;
+      }
+    }
+    
+    // Check if destination is blocked (for both orthogonal and diagonal)
+    const destBlocked = this.scene.isUnitAt(gridX, gridY) || this.isObstacle(gridX, gridY);
+    if (destBlocked) {
+      console.log('Move blocked at destination', { gridX, gridY });
+      return false;
+    }
+    
+    // For diagonal moves, check if we're cutting corners
+    if (absDx === 1 && absDy === 1) {
+      // Check if either adjacent orthogonal move would be blocked
+      const corner1Blocked = this.scene.isUnitAt(this.lastGridX, gridY) || this.isObstacle(this.lastGridX, gridY);
+      const corner2Blocked = this.scene.isUnitAt(gridX, this.lastGridY) || this.isObstacle(gridX, this.lastGridY);
+      
+      // If both orthogonal moves are blocked, diagonal move is not allowed
+      if (corner1Blocked && corner2Blocked) {
+        console.log('Diagonal move blocked by corners', { gridX, gridY });
+        return false;
+      }
+      
+      // If one of the orthogonal moves is blocked, we might still allow the diagonal
+      // but we should check if the path is valid
+      if (corner1Blocked || corner2Blocked) {
+        // Check if the path would go through a wall
+        const midX = this.lastGridX + dx;
+        const midY = this.lastGridY + dy;
         
-        // Skip if out of bounds
-        if (nx < 0 || nx >= 10 || ny < 0 || ny >= 10) continue;
-        
-        // Skip if undead is in the target tile or it's an obstacle
-        if (this.scene.isUndeadAt(nx, ny) || this.isObstacle(nx, ny)) {
-          continue;
-        }
-        
-        // For diagonal moves, check if we can move between units
-        if (isDiagonal && !this.canMoveDiagonally(current.x, current.y, nx, ny)) {
-          continue;
-        }
-        
-        // Skip if target tile has a survivor and we're not moving diagonally
-        if (this.scene.isSurvivorAt(nx, ny) && !isDiagonal) {
-          continue;
-        }
-        
-        // Calculate remaining movement points after this move
-        const newRemainingMP = current.remainingMP - cost;
-        
-        // Skip if not enough movement points for this move
-        if (newRemainingMP < 0) continue;
-        
-        // Calculate remaining AP, allowing for partial AP usage
-        const usedMP = maxMovementPoints - newRemainingMP;
-        // Calculate exact AP used (can be fractional)
-        const usedAP = usedMP / 4;
-        const remainingAP = maxAP - usedAP;
-        
-        // Skip if we've used more AP than we have
-        if (remainingAP < 0) continue;
-        
-        // Skip if we've found a better path to this tile (more remaining AP)
-        const bestRemainingAP = visited.get(key) || -1;
-        if (remainingAP <= bestRemainingAP) continue;
-        
-        // Update best path to this tile
-        visited.set(key, remainingAP);
-        
-        // Create a new path to this tile
-        const path = [...current.path, { x: nx, y: ny, isDiagonal }];
-        
-        // Add to range
-        range.push({ 
-          x: nx, 
-          y: ny, 
-          cost: usedAP,
-          path,
-          isDiagonal,
-          remainingAP,
-          remainingMP: newRemainingMP
-        });
-        
-        // Add to queue to explore from this tile if we have AP left
-        if (remainingAP > 0) {
-          queue.push({
-            x: nx,
-            y: ny,
-            remainingAP,
-            remainingMP: newRemainingMP,
-            path
-          });
+        // If the midpoint is blocked, don't allow the diagonal
+        if (this.isObstacle(midX, midY)) {
+          console.log('Diagonal move blocked by midpoint obstacle', { midX, midY });
+          return false;
         }
       }
     }
     
-    this.movementRange = range;
-    console.log(`Movement range calculated with ${range.length} reachable tiles`);
-    return range;
+    // Add the point to the path
+    this.mousePath.push({ x: gridX, y: gridY });
+    this.lastGridX = gridX;
+    this.lastGridY = gridY;
+    this.lastDirX = dx;
+    this.lastDirY = dy;
+    
+    console.log('Added point to path', { x: gridX, y: gridY }, 'Path length:', this.mousePath.length);
+    return true;
   }
-
-  // Draw movement range overlay
-  showRange(range = this.movementRange) {
-    console.log('showRange called with:', range);
+  
+  // Clear the current mouse path and reset tracking state
+  clearMousePath() {
+    console.log('Clearing mouse path');
+    this.mousePath = [];
+    this.lastGridX = -1;
+    this.lastGridY = -1;
+    this.lastDirX = 0;
+    this.lastDirY = 0;
+    this.isBuildingPath = false;
+  }
+  
+  // Try to add a diagonal move
+  tryAddDiagonalMove(x, y, dx, dy) {
+    const diagonalX = x + dx;
+    const diagonalY = y + dy;
     
-    // Clear any existing graphics and texts first
-    this.hideRange();
-    
-    // Ensure we have a valid graphics object
-    if (!this.movementGraphics) {
-      console.log('Creating movement graphics');
-      this.movementGraphics = this.scene.add.graphics();
-      this.movementGraphics.setDepth(50);
+    // Check if diagonal move is valid
+    if (this.addMousePoint(diagonalX, diagonalY)) {
+      this.rebuildPathFromMousePath();
     }
     
+    this.isBuildingPath = false;
+    return true;
+  }
+  
+  // Clear the path preview
+  clearPathPreview() {
+    if (this.pathGraphics) {
+      this.pathGraphics.clear();
+    }
+    this.currentPath = [];
+    this.clearMousePath();
+  }
+  
+  // Show movement range on the grid
+  showRange(range) {
+    // Clear any existing range display first
+    this.hideRange();
+    
     if (!range || range.length === 0) {
-      console.log('No range to display');
+      console.log('[MOVEMENT] No range to display');
       return;
     }
     
     // Store the range for later use
-    this.movementRange = range;
+    this.movementRange = [...range];
     
-    // Clear any existing range texts
-    this.clearRangeTexts();
-    
-    // Group tiles by their coordinates to handle overlapping ranges
-    const tileMap = new Map();
-    
-    range.forEach(tile => {
-      const key = `${tile.x},${tile.y}`;
-      if (!tileMap.has(key)) {
-        tileMap.set(key, []);
-      }
-      tileMap.get(key).push(tile);
-    });
-    
-    // Draw each tile in the movement range
-    tileMap.forEach((tiles, key) => {
-      const [x, y] = key.split(',').map(Number);
-      const tileX = x * TILE_SIZE;
-      const tileY = y * TILE_SIZE;
+    try {
+      // Create new graphics for range display
+      this.rangeGraphics = this.scene.add.graphics();
+      this.rangeGraphics.setDepth(40); // Below path preview but above grid
       
-      // Skip if this is the unit's current position
-      const isUnitPosition = this.unit && x === this.unit.gridX && y === this.unit.gridY;
-      if (isUnitPosition) {
-        return;
-      }
-      
-      // Skip if there's an obstacle or another unit
-      if (this.isObstacle(x, y) || this.scene.isUnitAt(x, y)) {
-        return;
-      }
-      
-      // Find the tile with the lowest cost for this position
-      const bestTile = tiles.reduce((best, current) => 
-        (current.cost < best.cost) ? current : best
-      );
-      
-      // Get the AP cost from the tile (already calculated in calculateRange)
-      const apCost = bestTile.cost; // This is already in AP units
-      
-      // Round to 2 decimal places for display
-      const displayAP = Math.round(apCost * 100) / 100;
-      
-      // Determine the fill and border colors based on AP cost
-      let fillColor, borderColor, textColor;
-      
-      if (displayAP > 1) {
-        // White highlight for >1 AP moves
-        fillColor = 0xffffff;
-        borderColor = 0xdddddd;
-        textColor = '#000';
-      } else {
-        // Orange for 1 AP or less moves
-        fillColor = 0xffa500;
-        borderColor = 0xff8c00;
-        textColor = '#fff';
-      }
-      
-      // Draw the movement tile with the appropriate color
-      this.movementGraphics.fillStyle(fillColor, 0.3);
-      this.movementGraphics.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
-      
-      // Draw border
-      this.movementGraphics.lineStyle(2, borderColor, 0.8);
-      this.movementGraphics.strokeRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
-      
-      // Add AP cost text
-      const textX = tileX + TILE_SIZE / 2;
-      const textY = tileY + TILE_SIZE / 2;
-      
-      const text = this.scene.add.text(
-        textX, 
-        textY - 10, // Slightly above the center
-        displayAP.toString(),
-        { 
-          fontSize: '14px', 
-          fill: textColor, 
-          fontStyle: 'bold', 
-          backgroundColor: 'rgba(0, 0, 0, 0.7)', 
-          padding: { x: 4, y: 2 }, 
-          stroke: textColor === '#000' ? '#fff' : '#000',
-          strokeThickness: 2 
+      // Draw each tile in range
+      range.forEach(tile => {
+        const x = tile.x * TILE_SIZE;
+        const y = tile.y * TILE_SIZE;
+        
+        // Calculate AP cost based on movement points (4 tiles per AP)
+        // For orthogonal moves: 4 tiles = 1 AP
+        // For diagonal moves: 2.67 tiles = 1 AP (1.5 MP per diagonal tile)
+        let apCost = Math.ceil(tile.cost / MOVEMENT.BASE_SPEED);
+        // Clamp between 1 and 2 AP
+        const displayApCost = Math.min(Math.max(1, apCost), 2);
+        
+        // Debug log for specific tiles
+        if ((tile.x === 5 && tile.y === 4) || (tile.x === 3 && tile.y === 1)) {
+          console.log(`[RENDER] Tile (${tile.x},${tile.y}) - MP: ${tile.cost}, AP: ${displayApCost}`);
         }
-      );
-      text.setOrigin(0.5);
-      text.setDepth(100);
-      this.rangeTexts.push(text);
-    });
-    
-    // Store the current unit for reference if available
-    if (range.length > 0 && range[0].unit) {
-      this.unit = range[0].unit;
+        
+        // Set colors based on AP cost (≤1 AP is low cost)
+        const isLowCost = displayApCost <= 1;
+        const highlightColor = isLowCost ? 0xffa500 : 0xffffff; // Orange for ≤1 AP, White for >1 AP
+        const textColor = isLowCost ? '#ffa500' : '#ffffff';
+        
+        // Draw highlight
+        this.rangeGraphics.fillStyle(highlightColor, 0.3);
+        this.rangeGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        
+        // Draw border
+        this.rangeGraphics.lineStyle(1, highlightColor, 0.7);
+        this.rangeGraphics.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+        
+        // Add AP cost text
+        const costText = this.scene.add.text(
+          x + TILE_SIZE / 2,
+          y + TILE_SIZE / 2,
+          displayApCost.toString(),
+          { 
+            font: 'bold 12px Arial',
+            fill: textColor,
+            stroke: '#000',
+            strokeThickness: 2,
+            align: 'center'
+          }
+        );
+        costText.setOrigin(0.5);
+        costText.setDepth(45);
+        
+        // Store the text for later cleanup
+        this.rangeTexts.push(costText);
+      });
+      
+      console.log(`[MOVEMENT] Displaying ${range.length} tiles in movement range`);
+    } catch (error) {
+      console.error('[MOVEMENT] Error showing range:', error);
+      this.hideRange(); // Clean up on error
     }
   }
-
+  
   // Hide movement range
   hideRange() {
+    // Clear all graphics contexts
     if (this.movementGraphics) {
       this.movementGraphics.clear();
     }
-    this.clearRangeTexts();
+    
+    if (this.pathGraphics) {
+      this.pathGraphics.clear();
+    }
+    
+    if (this.rangeGraphics) {
+      this.rangeGraphics.clear();
+      this.rangeGraphics.destroy();
+      this.rangeGraphics = null;
+    }
+    
+    // Clear all range texts
+    this.rangeTexts.forEach(text => {
+      if (text && typeof text.destroy === 'function') {
+        text.destroy();
+      }
+    });
+    this.rangeTexts = [];
+    
+    // Reset path tracking
+    this.currentPath = [];
+    this.clearMousePath();
+    
+    // Reset the movement range
     this.movementRange = [];
   }
   
-  // Clear all range text objects
-  clearRangeTexts() {
-    if (this.rangeTexts) {
-      this.rangeTexts.forEach(text => {
-        if (text && text.destroy) {
-          text.destroy();
-        }
-      });
-      this.rangeTexts = [];
+  // Clean up resources
+  destroy() {
+    // Clean up all graphics and texts
+    if (this.movementGraphics) {
+      this.movementGraphics.destroy();
+      this.movementGraphics = null;
     }
-  }
-
-  // Check if a tile contains an obstacle (terrain only)
-  isObstacle(x, y) {
-    return this.obstacles.some(obs => obs.x === x && obs.y === y);
+    
+    if (this.pathGraphics) {
+      this.pathGraphics.destroy();
+      this.pathGraphics = null;
+    }
+    
+    if (this.rangeGraphics) {
+      this.rangeGraphics.destroy();
+      this.rangeGraphics = null;
+    }
+    
+    // Clean up all text objects
+    this.rangeTexts.forEach(text => {
+      if (text && typeof text.destroy === 'function') {
+        text.destroy();
+      }
+    });
+    this.rangeTexts = [];
+    
+    // Reset all state
+    this.currentPath = [];
+    this.clearMousePath();
+    this.obstacles = [];
+    this.unit = null;
   }
   
-  // Check if diagonal movement is allowed between two tiles
-  canMoveDiagonally(fromX, fromY, toX, toY) {
-    // For diagonal moves, check the two adjacent orthogonal tiles
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    
-    // If not a diagonal move, return true (let other checks handle it)
-    if (Math.abs(dx) !== 1 || Math.abs(dy) !== 1) {
-      return true;
-    }
-    
-    // Check the two adjacent orthogonal tiles
-    const tile1Blocked = this.scene.isUnitAt(fromX + dx, fromY) || this.isObstacle(fromX + dx, fromY);
-    const tile2Blocked = this.scene.isUnitAt(fromX, fromY + dy) || this.isObstacle(fromX, fromY + dy);
-    
-    // Diagonal movement is allowed if at least one adjacent tile is clear
-    return !(tile1Blocked && tile2Blocked);
-  }
-
-  // Add obstacle at grid coordinates
+  // Add an obstacle at the given grid coordinates
   addObstacle(x, y) {
-    if (!this.isObstacle(x, y)) {
-      this.obstacles.push({ x, y });
-    }
+    this.obstacles.push({ x, y });
   }
-
-  // Remove obstacle at grid coordinates
-  removeObstacle(x, y) {
-    this.obstacles = this.obstacles.filter(obs => !(obs.x === x && obs.y === y));
+  
+  // Check if there's an obstacle at the given grid coordinates
+  isObstacle(x, y) {
+    // Only count non-unit obstacles or enemies as obstacles
+    return this.obstacles.some(obs => obs.x === x && obs.y === y) || 
+           (this.scene.isUnitAt(x, y) && !this.scene.isSurvivorAt(x, y));
   }
-
-  // Set all obstacles at once
+  
+  // Set the current unit for movement
+  setUnit(unit) {
+    this.unit = unit;
+    this.clearMousePath();
+  }
+  
+  // Clear the current unit
+  clearUnit() {
+    this.unit = null;
+    this.clearMousePath();
+  }
+  
+  // Set obstacles
   setObstacles(obstacles) {
     this.obstacles = [...obstacles];
-    console.log('Obstacles set:', this.obstacles);
   }
-
-  // Get path to target tile if reachable
-  getPathTo(x, y) {
-    // First, check if the target coordinates are valid
-    if (x < 0 || x >= 10 || y < 0 || y >= 10) {
-      console.warn(`Target coordinates (${x}, ${y}) are out of bounds`);
-      return null;
+  
+  // Clear all obstacles
+  clearObstacles() {
+    this.obstacles = [];
+  }
+  
+  // Rebuild the current path from the mouse path and update movement range
+  rebuildPathFromMousePath() {
+    // Implementation for rebuilding path from mouse path
+  }
+  
+  // Update the remaining movement range based on used AP
+  updateRemainingRange(remainingMovementPoints) {
+    // Implementation for updating remaining range
+  }
+  
+  // Calculate remaining movement range from a position with given movement points
+  calculateRemainingRange(startX, startY, maxMovementPoints) {
+    // Implementation for calculating remaining range
+  }
+  
+  // Show the remaining movement range
+  showRemainingRange(range, startX, startY) {
+    // Implementation for showing remaining range
+  }
+  
+  // Helper to draw an arrow
+  drawArrow(fromX, fromY, toX, toY, headLength = 16, headWidth = 12, color = 0xffff00) {
+    if (!this.pathGraphics) return;
+    
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    
+    // Draw arrow shaft
+    this.pathGraphics.lineStyle(4, color, 1);
+    this.pathGraphics.beginPath();
+    this.pathGraphics.moveTo(fromX, fromY);
+    this.pathGraphics.lineTo(
+      toX - headLength * 0.9 * Math.cos(angle),
+      toY - headLength * 0.9 * Math.sin(angle)
+    );
+    this.pathGraphics.strokePath();
+    
+    // Draw arrow head
+    this.pathGraphics.fillStyle(color, 0.9);
+    this.pathGraphics.beginPath();
+    this.pathGraphics.moveTo(toX, toY);
+    this.pathGraphics.lineTo(
+      toX - headLength * Math.cos(angle - Math.PI / 6),
+      toY - headLength * Math.sin(angle - Math.PI / 6)
+    );
+    this.pathGraphics.lineTo(
+      toX - headLength * Math.cos(angle + Math.PI / 6),
+      toY - headLength * Math.sin(angle + Math.PI / 6)
+    );
+    this.pathGraphics.closePath();
+    this.pathGraphics.fillPath();
+  }
+  
+  // Calculate movement range for a unit
+  calculateRange(unit, obstacles = []) {
+    const startX = unit.gridX;
+    const startY = unit.gridY;
+    
+    // If no AP left, return empty range
+    if (unit.actionPoints <= 0) {
+      console.log(`[MOVEMENT] No AP left for movement (has ${unit.actionPoints} AP)`);
+      return [];
     }
     
-    // If no movement range is calculated, return null
-    if (!this.movementRange || this.movementRange.length === 0) {
-      console.warn('No movement range calculated. Call calculateRange() first.');
-      return null;
-    }
+    // Calculate max movement points based on AP and BASE_SPEED
+    const maxMP = unit.actionPoints * MOVEMENT.BASE_SPEED;
+    console.log(`[MOVEMENT] Calculating range for unit at (${startX},${startY}) with ${unit.actionPoints} AP (${maxMP} MP)`);
     
-    // Find the target tile in the movement range
-    const target = this.movementRange.find(tile => tile.x === x && tile.y === y);
-    
-    if (!target) {
-      console.warn(`Target (${x}, ${y}) is not reachable`);
-      return null;
-    }
-    
-    // If no path exists (shouldn't happen if target is in movementRange), return null
-    if (!target.path || target.path.length === 0) {
-      console.warn('No valid path found to target');
-      return null;
-    }
-    
-    // Reconstruct and validate the entire path
-    const fullPath = [
-      { x: this.movementRange[0].x, y: this.movementRange[0].y },
-      ...target.path.map(step => ({ x: step.x, y: step.y, isDiagonal: step.isDiagonal }))
+    // Directions: 4 orthogonal, then 4 diagonal
+    const directions = [
+      { dx: 1, dy: 0, cost: MOVEMENT.TILE_COST_ORTHOGONAL },
+      { dx: -1, dy: 0, cost: MOVEMENT.TILE_COST_ORTHOGONAL },
+      { dx: 0, dy: 1, cost: MOVEMENT.TILE_COST_ORTHOGONAL },
+      { dx: 0, dy: -1, cost: MOVEMENT.TILE_COST_ORTHOGONAL },
+      { dx: 1, dy: 1, cost: MOVEMENT.TILE_COST_DIAGONAL },
+      { dx: -1, dy: 1, cost: MOVEMENT.TILE_COST_DIAGONAL },
+      { dx: 1, dy: -1, cost: MOVEMENT.TILE_COST_DIAGONAL },
+      { dx: -1, dy: -1, cost: MOVEMENT.TILE_COST_DIAGONAL }
     ];
     
-    // Validate each step of the path
-    for (let i = 1; i < fullPath.length; i++) {
-      const prev = fullPath[i - 1];
-      const current = fullPath[i];
-      const isDiagonal = Math.abs(current.x - prev.x) === 1 && Math.abs(current.y - prev.y) === 1;
+    const queue = [{ x: startX, y: startY, cost: 0, path: [] }];
+    const visited = new Map();
+    const range = [];
+    
+    visited.set(`${startX},${startY}`, 0);
+    
+    while (queue.length > 0) {
+      queue.sort((a, b) => a.cost - b.cost);
+      const current = queue.shift();
       
-      // Check for obstacles or invalid moves
-      if (this.isObstacle(current.x, current.y)) {
-        console.warn(`Path is blocked by obstacle at (${current.x}, ${current.y})`);
-        return null;
-      }
-      
-      // For diagonal moves, check if we can move between units
-      if (isDiagonal && !this.canMoveDiagonally(prev.x, prev.y, current.x, current.y)) {
-        console.warn(`Diagonal move from (${prev.x},${prev.y}) to (${current.x},${current.y}) is blocked`);
-        return null;
-      }
-      
-      // Check for undead in the target tile
-      if (this.scene.isUndeadAt(current.x, current.y)) {
-        console.warn(`Path is blocked by undead at (${current.x}, ${current.y})`);
-        return null;
-      }
-      
-      // Check for survivors in the target tile (unless moving diagonally)
-      if (this.scene.isSurvivorAt(current.x, current.y) && !isDiagonal) {
-        console.warn(`Path is blocked by survivor at (${current.x}, ${current.y})`);
-        return null;
+      for (const dir of directions) {
+        const x = current.x + dir.dx;
+        const y = current.y + dir.dy;
+        const moveCost = dir.cost;
+        const newCost = current.cost + moveCost;
+        
+        // Skip if this move would exceed remaining movement points
+        if (newCost > maxMP) {
+          continue;
+        }
+        
+        // Skip if out of bounds
+        if (x < 0 || y < 0 || x >= this.scene.grid[0].length || y >= this.scene.grid.length) {
+          continue;
+        }
+        
+        // Skip if obstacle or occupied (unless it's the starting position)
+        if ((x !== startX || y !== startY) && (this.isObstacle(x, y) || this.scene.isUnitAt(x, y))) {
+          continue;
+        }
+        
+        // For diagonal moves, check corners
+        if (dir.cost === MOVEMENT.TILE_COST_DIAGONAL) {
+          const corner1Blocked = this.scene.isUnitAt(current.x, y) || this.isObstacle(current.x, y);
+          const corner2Blocked = this.scene.isUnitAt(x, current.y) || this.isObstacle(x, current.y);
+          if (corner1Blocked && corner2Blocked) {
+            continue;
+          }
+        }
+        
+        const key = `${x},${y}`;
+        
+        if (!visited.has(key) || newCost < visited.get(key)) {
+          visited.set(key, newCost);
+          
+          // Calculate AP cost based on movement points
+          // 0-4 MP = 1 AP, 4.1-8 MP = 2 AP
+          const apCost = newCost <= MOVEMENT.BASE_SPEED ? 1 : 2;
+          
+          // Only add to range if it's not the starting position
+          if (x !== startX || y !== startY) {
+            range.push({ x, y, cost: newCost, apCost });
+          }
+          
+          queue.push({ x, y, cost: newCost });
+        }
       }
     }
     
-    // Use the pre-calculated AP cost from the movement range
-    const totalAPCost = target.cost;
-    const hasDiagonal = target.path.some(step => step.isDiagonal);
+    return range;
+  }
+  
+  // Update path preview based on mouse position
+  updatePathPreview(mouseX, mouseY) {
+    if (!this.unit) return;
     
-    console.log(`Found valid path to (${x}, ${y}) with AP cost ${totalAPCost}`);
-    return {
-      path: target.path.map(step => ({ x: step.x, y: step.y, isDiagonal: step.isDiagonal })),
-      apCost: totalAPCost,
-      isDiagonal: hasDiagonal
-    };
+    // Convert mouse position to grid coordinates
+    const gridX = Math.floor(mouseX / TILE_SIZE);
+    const gridY = Math.floor(mouseY / TILE_SIZE);
+    
+    // Clear previous path
+    if (this.pathGraphics) {
+      this.pathGraphics.clear();
+    }
+    
+    // Use the mouse path if we have one, otherwise use direct path
+    let path = [];
+    
+    if (this.mousePath.length > 0) {
+      // Use the actual mouse path
+      path = [...this.mousePath];
+      
+      // Add current grid position if it's different from the last point
+      const lastPoint = path[path.length - 1];
+      if (lastPoint.x !== gridX || lastPoint.y !== gridY) {
+        path.push({ x: gridX, y: gridY });
+      }
+    } else {
+      // Fall back to direct path if no mouse path is available
+      path = this.findPath(this.unit.gridX, this.unit.gridY, gridX, gridY);
+    }
+    
+    // Filter out invalid moves and limit to movement range
+    const validPath = [];
+    let currentX = this.unit.gridX;
+    let currentY = this.unit.gridY;
+    
+    // Calculate total available movement points (AP * BASE_SPEED)
+    let remainingMP = this.unit.actionPoints * MOVEMENT.BASE_SPEED;
+    
+    for (const point of path) {
+      const dx = point.x - currentX;
+      const dy = point.y - currentY;
+      
+      // Only allow single-tile moves (orthogonal or diagonal)
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        console.log('Multi-tile move detected, breaking path');
+        break;
+      }
+      
+      // Skip if we haven't moved
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      
+      // Calculate move cost
+      const isDiagonal = dx !== 0 && dy !== 0;
+      const moveCost = isDiagonal ? MOVEMENT.TILE_COST_DIAGONAL : MOVEMENT.TILE_COST_ORTHOGONAL;
+      
+      console.log(`Move from (${currentX},${currentY}) to (${point.x},${point.y}) - Cost: ${moveCost} MP, Remaining: ${remainingMP} MP`);
+      
+      // Check if we have enough MP left
+      if (moveCost > remainingMP) {
+        console.log('Not enough MP for move, stopping path');
+        break;
+      }
+      
+      // Check if the tile is walkable
+      if ((point.x !== this.unit.gridX || point.y !== this.unit.gridY) && 
+          (this.isObstacle(point.x, point.y) || this.scene.isUnitAt(point.x, point.y))) {
+        break;
+      }
+      
+      // For diagonal moves, check corners
+      if (isDiagonal) {
+        const corner1Blocked = this.scene.isUnitAt(currentX, point.y) || this.isObstacle(currentX, point.y);
+        const corner2Blocked = this.scene.isUnitAt(point.x, currentY) || this.isObstacle(point.x, currentY);
+        if (corner1Blocked && corner2Blocked) {
+          break;
+        }
+      }
+      
+      // Add to path and update position/MP
+      validPath.push({ x: point.x, y: point.y });
+      currentX = point.x;
+      currentY = point.y;
+      remainingMP -= moveCost;
+    }
+    
+    this.currentPath = validPath;
+    this.drawPathPreview();
+  }
+  
+  // Find path using A* algorithm
+  findPath(startX, startY, targetX, targetY) {
+    // Simple implementation - replace with A* if needed
+    const path = [];
+    let x = startX;
+    let y = startY;
+    
+    while (x !== targetX || y !== targetY) {
+      const dx = targetX > x ? 1 : targetX < x ? -1 : 0;
+      const dy = targetY > y ? 1 : targetY < y ? -1 : 0;
+      
+      x += dx;
+      y += dy;
+      
+      // Check if the tile is walkable
+      if (this.isObstacle(x, y) || this.scene.isUnitAt(x, y)) {
+        break;
+      }
+      
+      path.push({ x, y });
+    }
+    
+    return path;
+  }
+  
+  // Draw the path preview
+  drawPathPreview() {
+    if (!this.pathGraphics || !this.currentPath || this.currentPath.length === 0) return;
+    
+    this.pathGraphics.clear();
+    this.pathGraphics.lineStyle(2, 0xffffff, 0.8);
+    
+    // Start from unit's position
+    let lastX = this.unit.gridX * TILE_SIZE + TILE_SIZE / 2;
+    let lastY = this.unit.gridY * TILE_SIZE + TILE_SIZE / 2;
+    
+    // Draw line to each point in the path
+    this.pathGraphics.beginPath();
+    this.pathGraphics.moveTo(lastX, lastY);
+    
+    for (const point of this.currentPath) {
+      const x = point.x * TILE_SIZE + TILE_SIZE / 2;
+      const y = point.y * TILE_SIZE + TILE_SIZE / 2;
+      
+      this.pathGraphics.lineTo(x, y);
+      lastX = x;
+      lastY = y;
+    }
+    
+    this.pathGraphics.strokePath();
+    
+    // Draw arrow heads at each segment
+    lastX = this.unit.gridX * TILE_SIZE + TILE_SIZE / 2;
+    lastY = this.unit.gridY * TILE_SIZE + TILE_SIZE / 2;
+    
+    for (const point of this.currentPath) {
+      const x = point.x * TILE_SIZE + TILE_SIZE / 2;
+      const y = point.y * TILE_SIZE + TILE_SIZE / 2;
+      
+      this.drawArrow(lastX, lastY, x, y);
+      lastX = x;
+      lastY = y;
+    }
   }
 }
